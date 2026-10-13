@@ -2,3 +2,6 @@
 /.vscode/
 study_docs_app/build/
 study_docs_app/.dart_tool/
+
+# Security & Sensitive Keys
+study_docs_app/lib/supabase_options.dart

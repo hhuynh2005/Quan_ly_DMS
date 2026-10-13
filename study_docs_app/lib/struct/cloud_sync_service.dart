@@ -60,7 +60,12 @@ class CloudSyncService {
   Future<CloudSyncResult> sync() {
     final active = _activeSync;
     if (active != null) return active;
-    final operation = _sync();
+    final operation = _sync().timeout(
+      const Duration(seconds: 3),
+      onTimeout: () {
+        return const CloudSyncResult(uploaded: 0, downloaded: 0, deleted: 0);
+      },
+    );
     _activeSync = operation;
     return operation.whenComplete(() => _activeSync = null);
   }

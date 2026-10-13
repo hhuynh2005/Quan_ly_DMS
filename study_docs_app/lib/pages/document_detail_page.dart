@@ -14,6 +14,8 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import '../struct/firebase_storage_service.dart';
 import '../struct/google_auth_service.dart';
+import '../struct/supabase_service.dart';
+import '../widgets/share_document_dialog.dart';
 import 'add_edit_document_page.dart';
 
 /// Màn hình Chi tiết Tài liệu học tập (Xem, Chuyển trạng thái, Sửa, Xóa)
@@ -61,6 +63,23 @@ class DocumentDetailPage extends StatelessWidget {
             tooltip: 'Yêu thích',
             onPressed: () {
               provider.toggleFavorite(document.id);
+            },
+          ),
+          // Nút Chia sẻ tài liệu (Supabase RLS & Permissions)
+          IconButton(
+            icon: const Icon(Icons.share_rounded),
+            tooltip: 'Chia sẻ tài liệu (Supabase RLS)',
+            onPressed: () {
+              final currentEmail = GoogleAuthService().currentUserEmail.isNotEmpty
+                  ? GoogleAuthService().currentUserEmail
+                  : 'anonymous@tlu.edu.vn';
+              ShareDocumentDialog.show(
+                context: context,
+                documentId: document.id,
+                documentTitle: document.title,
+                ownerEmail: currentEmail,
+                currentUserEmail: currentEmail,
+              );
             },
           ),
           // Nút Sửa
@@ -486,6 +505,113 @@ class DocumentDetailPage extends StatelessWidget {
           _CloudStorageCard(document: document),
           const SizedBox(height: 16),
 
+          // 5.1 Supabase RLS & Document Sharing Card
+          Card(
+            elevation: 1,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3ECF8E).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.security_rounded, color: Color(0xFF3ECF8E), size: 18),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Phân Quyền & Chia Sẻ (Supabase RLS)',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Dữ liệu quan hệ được quản lý bởi Supabase PostgreSQL với chính sách bảo mật Row Level Security. Chỉ những tài khoản được cấp quyền (Viewer/Editor) mới có thể truy cập.',
+                    style: TextStyle(fontSize: 11.5, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.cloud_upload_outlined, size: 18),
+                          label: const Text('Đồng bộ Supabase'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF3ECF8E),
+                            side: const BorderSide(color: Color(0xFF3ECF8E)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () async {
+                            final email = GoogleAuthService().currentUserEmail.isNotEmpty
+                                ? GoogleAuthService().currentUserEmail
+                                : 'anonymous@tlu.edu.vn';
+                            final uid = GoogleAuthService().currentUserId.isNotEmpty
+                                ? GoogleAuthService().currentUserId
+                                : 'local_user';
+                            final res = await SupabaseService().createDocument(
+                              title: document.title,
+                              description: document.description,
+                              subject: provider.getSubjectById(document.subjectId)?.name ?? 'Chung',
+                              fileFormat: document.fileFormat.name,
+                              fileSizeBytes: document.fileSizeBytes,
+                              fileUrl: document.fileUrl ?? '',
+                              storagePath: document.filePath ?? 'documents/${document.id}',
+                              ownerId: uid,
+                              ownerEmail: email,
+                              isPublic: false,
+                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  backgroundColor: res != null ? const Color(0xFF3ECF8E) : Colors.orange,
+                                  content: Text(res != null
+                                      ? 'Đã đồng bộ Metadata lên Supabase Database!'
+                                      : 'Đồng bộ Supabase hoàn tất (hoặc đã tồn tại).'),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          icon: const Icon(Icons.share_rounded, size: 18),
+                          label: const Text('Chia sẻ tài liệu'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF3ECF8E),
+                            foregroundColor: Colors.black87,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () {
+                            final currentEmail = GoogleAuthService().currentUserEmail.isNotEmpty
+                                ? GoogleAuthService().currentUserEmail
+                                : 'anonymous@tlu.edu.vn';
+                            ShareDocumentDialog.show(
+                              context: context,
+                              documentId: document.id,
+                              documentTitle: document.title,
+                              ownerEmail: currentEmail,
+                              currentUserEmail: currentEmail,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // 6. Thẻ Tags
           if (document.tags.isNotEmpty)
             Card(
@@ -597,8 +723,9 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
     });
 
     try {
-      final user = GoogleAuthService().currentUser;
-      final uploaderUid = user?.uid ?? 'student_2351170599';
+      final uploaderUid = GoogleAuthService().currentUserId.isNotEmpty
+          ? GoogleAuthService().currentUserId
+          : 'student_2351170599';
       final fileName =
           '${widget.document.title.replaceAll(" ", "_")}.${widget.document.fileFormat.name}';
 
@@ -669,8 +796,9 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
 
     final provider = context.read<DocumentStateProvider>();
     try {
-      final user = GoogleAuthService().currentUser;
-      final uploaderUid = user?.uid ?? 'student_2351170599';
+      final uploaderUid = GoogleAuthService().currentUserId.isNotEmpty
+          ? GoogleAuthService().currentUserId
+          : 'student_2351170599';
       final fileName =
           '${widget.document.title.replaceAll(" ", "_")}.${widget.document.fileFormat.name}';
       final path = FirebaseStorageService.buildStoragePath(

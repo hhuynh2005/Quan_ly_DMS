@@ -1,16 +1,18 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../struct/document_enums.dart';
 import '../struct/document_state_provider.dart';
+import '../theme.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/cloud_sync_panel.dart';
+import '../widgets/cloud_transfer_progress.dart';
 import '../widgets/document_card.dart';
 import '../widgets/empty_state_view.dart';
 import '../widgets/filter_chip_bar.dart';
 import '../widgets/offline_mode_indicator.dart';
 import '../widgets/stat_summary_card.dart';
+import '../widgets/supabase_cloud_panel.dart';
 import '../widgets/user_profile_header.dart';
 import 'about_app_page.dart';
 import 'add_edit_document_page.dart';
@@ -19,6 +21,8 @@ import 'document_list_page.dart';
 import 'login_page.dart';
 import 'search_document_page.dart';
 import 'subjects_manage_page.dart';
+import '../struct/google_auth_service.dart';
+import 'package:file_picker/file_picker.dart';
 
 /// Màn hình chính Dashboard tổng quan
 class HomeDashboardPage extends StatefulWidget {
@@ -97,11 +101,14 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
           ],
         ),
         actions: [
-          StreamBuilder<User?>(
-            stream: FirebaseAuth.instance.authStateChanges(),
-            builder: (context, snapshot) {
-              final user = snapshot.data;
-              if (user != null) {
+          ValueListenableBuilder<Map<String, dynamic>?>(
+            valueListenable: GoogleAuthService.activeUserNotifier,
+            builder: (context, _, __) {
+              final profile = GoogleAuthService().getUserProfile();
+              if (profile['signedIn'] == true) {
+                final displayName = profile['displayName']?.toString() ?? '';
+                final email = profile['email']?.toString() ?? '';
+                final photoUrl = profile['photoUrl']?.toString();
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
                   child: InkWell(
@@ -112,20 +119,20 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                       );
                     },
                     child: Tooltip(
-                      message: 'Hồ sơ: ${user.displayName ?? user.email}',
+                      message: 'Hồ sơ: ${displayName.isNotEmpty ? displayName : email}',
                       child: Stack(
                         alignment: Alignment.bottomRight,
                         children: [
                           CircleAvatar(
                             radius: 17,
                             backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.15),
-                            backgroundImage: user.photoURL != null && user.photoURL!.isNotEmpty
-                                ? NetworkImage(user.photoURL!)
+                            backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+                                ? NetworkImage(photoUrl)
                                 : null,
-                            child: user.photoURL == null || user.photoURL!.isEmpty
+                            child: photoUrl == null || photoUrl.isEmpty
                                 ? Text(
-                                    user.displayName?.isNotEmpty == true
-                                        ? user.displayName![0].toUpperCase()
+                                    displayName.isNotEmpty
+                                        ? displayName[0].toUpperCase()
                                         : 'U',
                                     style: TextStyle(
                                       fontSize: 13,
@@ -155,6 +162,131 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const LoginPage()),
+                  );
+                },
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.cloud_upload_rounded),
+            tooltip: 'Firebase Cloud Storage (Nhóm 16)',
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                builder: (ctx) {
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.cloud_done_rounded, color: AppTheme.primaryColor, size: 24),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Firebase Cloud Storage',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    'cashew-study-docs-d5b15.firebasestorage.app',
+                                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '• Kiến trúc: Direct Upload bypass API máy chủ',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '• Thư mục Cloud: documents/{uid}/{docId}/',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '• Bảo mật: storage.rules kiểm tra UID & file <= 50MB',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                icon: const Icon(Icons.upload_file_rounded),
+                                label: const Text('Test Demo Upload'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryColor,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                onPressed: () {
+                                  Navigator.of(ctx).pop();
+                                  CloudTransferProgress.showTransferSheet(
+                                    context: context,
+                                    type: TransferType.upload,
+                                    fileName: 'Bao_Cao_Nghien_Cuu_DMS_Nhom16.pdf',
+                                    totalBytes: 4 * 1024 * 1024,
+                                    fileFormat: DocumentFormat.pdf,
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.download_rounded),
+                                label: const Text('Test Download'),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                onPressed: () {
+                                  Navigator.of(ctx).pop();
+                                  CloudTransferProgress.showTransferSheet(
+                                    context: context,
+                                    type: TransferType.download,
+                                    fileName: 'Tai_Lieu_Huong_Dan_Firebase.docx',
+                                    totalBytes: 2 * 1024 * 1024,
+                                    fileFormat: DocumentFormat.docx,
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   );
                 },
               );
@@ -276,6 +408,14 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                       child: CloudSyncPanel(
                         key: const ValueKey('cloud-sync-panel'),
                       ),
+                    ),
+                  ),
+
+                  // 0.3 Bảng điều khiển Supabase Cloud Database & RLS Security
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                      child: SupabaseCloudPanel(),
                     ),
                   ),
                   // 1. Thẻ chào mừng sinh viên & môn học
@@ -637,18 +777,60 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                 ],
               ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AddEditDocumentPage(
-                initialSubjectId: provider.selectedSubjectId,
-              ),
-            ),
-          );
-        },
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Thêm tài liệu'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'fab_upload_device',
+            backgroundColor: const Color(0xFF3ECF8E),
+            foregroundColor: Colors.black87,
+            elevation: 3,
+            onPressed: () async {
+              try {
+                final file = await FilePicker.pickFile(
+                  type: FileType.custom,
+                  allowedExtensions: [
+                    'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg', 'zip'
+                  ],
+                );
+                if (file != null && context.mounted) {
+                  final bytes = await file.readAsBytes();
+                  final size = (await file.length()) ?? bytes.length;
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => AddEditDocumentPage(
+                        initialFileName: file.name,
+                        initialFileBytes: bytes,
+                        initialFileSize: size,
+                        initialSubjectId: provider.selectedSubjectId,
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                debugPrint('[HomeDashboardPage] Lỗi chọn tệp: $e');
+              }
+            },
+            icon: const Icon(Icons.file_upload_rounded),
+            label: const Text('Tải tệp từ máy tính', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton.extended(
+            heroTag: 'fab_add_doc',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AddEditDocumentPage(
+                    initialSubjectId: provider.selectedSubjectId,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Thêm tài liệu'),
+          ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _navIndex,

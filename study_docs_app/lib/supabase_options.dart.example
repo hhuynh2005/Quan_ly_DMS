@@ -1,0 +1,14 @@
+// ==============================================================================
+// FILE MẪU CẤU HÌNH SUPABASE CLOUD DATABASE
+// ==============================================================================
+// Hướng dẫn thiết lập:
+// 1. Sao chép (copy) file này và đổi tên thành: supabase_options.dart
+// 2. Điền Supabase URL và Publishable (Anon) Key lấy từ Supabase Dashboard của bạn:
+//    - URL: https://<project-ref>.supabase.co
+//    - Anon Key: sb_publishable_... (hoặc eyJhbGciOi...)
+// ==============================================================================
+
+class SupabaseConfig {
+  static const String url = 'YOUR_SUPABASE_PROJECT_URL';
+  static const String anonKey = 'YOUR_SUPABASE_ANON_KEY';
+}

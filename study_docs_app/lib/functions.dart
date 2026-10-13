@@ -5,6 +5,7 @@ class AppFunctions {
   /// Định dạng ngày tháng hiển thị dạng: dd/MM/yyyy
   static String formatDate(DateTime? date) {
     if (date == null) return 'Không có';
+    
     return DateFormat('dd/MM/yyyy').format(date);
   }
 

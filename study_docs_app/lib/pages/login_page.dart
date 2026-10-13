@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../struct/google_auth_service.dart';
@@ -179,12 +178,12 @@ class _LoginPageState extends State<LoginPage> {
           const SizedBox(height: 20),
 
           // Lắng nghe trạng thái Auth thời gian thực
-          StreamBuilder<User?>(
-            stream: _authService.authStateChanges,
-            builder: (context, snapshot) {
-              final User? user = snapshot.data;
-              if (user != null) {
-                return _buildSignedInView(context, user, isDark);
+          ValueListenableBuilder<Map<String, dynamic>?>(
+            valueListenable: GoogleAuthService.activeUserNotifier,
+            builder: (context, _, __) {
+              final profile = _authService.getUserProfile();
+              if (profile['signedIn'] == true) {
+                return _buildSignedInView(context, profile, isDark);
               } else {
                 return _buildSignedOutView(context, isDark);
               }
@@ -198,10 +197,14 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   /// Giao diện khi người dùng ĐÃ ĐĂNG NHẬP
-  Widget _buildSignedInView(BuildContext context, User user, bool isDark) {
-    final email = user.email ?? '';
-    final isStudent = GoogleAuthService.isStudentEmail(email);
-    final badge = GoogleAuthService.getAccountBadge(email);
+  Widget _buildSignedInView(BuildContext context, Map<String, dynamic> user, bool isDark) {
+    final email = user['email']?.toString() ?? '';
+    final displayName = user['displayName']?.toString() ?? 'Người dùng';
+    final photoUrl = user['photoUrl']?.toString();
+    final uid = user['uid']?.toString() ?? '';
+    final badge = user['badge']?.toString() ?? 'Khách';
+    final isStudent = user['isStudent'] == true;
+    final lastSignIn = user['lastSignInTime']?.toString().split('.').first ?? 'Vừa xong';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -219,13 +222,13 @@ class _LoginPageState extends State<LoginPage> {
                     CircleAvatar(
                       radius: 44,
                       backgroundColor: AppTheme.primaryLight.withValues(alpha: 0.2),
-                      backgroundImage: user.photoURL != null
-                          ? NetworkImage(user.photoURL!)
+                      backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+                          ? NetworkImage(photoUrl)
                           : null,
-                      child: user.photoURL == null
+                      child: photoUrl == null || photoUrl.isEmpty
                           ? Text(
-                              user.displayName != null && user.displayName!.isNotEmpty
-                                  ? user.displayName![0].toUpperCase()
+                              displayName.isNotEmpty
+                                  ? displayName[0].toUpperCase()
                                   : 'U',
                               style: const TextStyle(
                                 fontSize: 32,
@@ -248,7 +251,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 14),
 
                 Text(
-                  user.displayName ?? 'Người dùng Google',
+                  displayName,
                   style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
@@ -303,34 +306,35 @@ class _LoginPageState extends State<LoginPage> {
                 // Thông số kỹ thuật phiên
                 _buildInfoRow(
                   icon: Icons.fingerprint_rounded,
-                  label: 'Firebase UID',
-                  value: user.uid,
+                  label: 'Định danh (UID)',
+                  value: uid,
                   isDark: isDark,
                 ),
                 const SizedBox(height: 10),
                 _buildInfoRow(
                   icon: Icons.shield_rounded,
-                  label: 'Provider ID',
-                  value: user.providerData.isNotEmpty
-                      ? user.providerData.first.providerId
-                      : 'google.com',
+                  label: 'Phân quyền',
+                  value: isStudent ? 'Sinh viên xác thực' : 'Tài khoản thường',
                   isDark: isDark,
                 ),
-                if (user.metadata.lastSignInTime != null) ...[
-                  const SizedBox(height: 10),
-                  _buildInfoRow(
-                    icon: Icons.access_time_rounded,
-                    label: 'Đăng nhập gần nhất',
-                    value: user.metadata.lastSignInTime.toString().split('.').first,
-                    isDark: isDark,
-                  ),
-                ],
+                const SizedBox(height: 10),
+                _buildInfoRow(
+                  icon: Icons.access_time_rounded,
+                  label: 'Phiên hoạt động',
+                  value: lastSignIn,
+                  isDark: isDark,
+                ),
               ],
             ),
           ),
         ),
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
+
+        // Khối chuyển đổi 3 tài khoản thử nghiệm
+        _buildTestAccountCard(context, isDark, email),
+
+        const SizedBox(height: 16),
 
         // Nút Đăng xuất
         ElevatedButton.icon(
@@ -445,6 +449,11 @@ class _LoginPageState extends State<LoginPage> {
           ),
           onPressed: _isLoading ? null : _handleSignIn,
         ),
+
+        const SizedBox(height: 18),
+
+        // Hoặc kiểm thử phân quyền 3 tài khoản (Checklist Mục 6)
+        _buildTestAccountCard(context, isDark, ''),
       ],
     );
   }
@@ -519,6 +528,228 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildTestAccountCard(BuildContext context, bool isDark, String currentEmail) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: const Color(0xFF3ECF8E).withValues(alpha: 0.35),
+          width: 1.2,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3ECF8E).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.supervisor_account_rounded,
+                    color: Color(0xFF3ECF8E),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Kiểm Thử Phân Quyền RLS (Mục 6)',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '1 chạm chuyển đổi 3 tài khoản để quay video & test',
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Tài khoản A (Owner)
+            _buildTestAccountTile(
+              context: context,
+              roleBadge: 'Tài khoản A • Chủ sở hữu (Owner)',
+              email: 'owner_user_a@e.tlu.edu.vn',
+              displayName: 'Nguyễn Văn A (Owner)',
+              uid: 'user_a_owner_tlueduvn',
+              badgeColor: Colors.amber.shade700,
+              icon: Icons.workspace_premium_rounded,
+              isCurrent: currentEmail == 'owner_user_a@e.tlu.edu.vn',
+              permissionDesc: 'Toàn quyền: Đọc, Sửa, Chia sẻ, Xóa tài liệu',
+            ),
+            const SizedBox(height: 8),
+
+            // Tài khoản B (Shared)
+            _buildTestAccountTile(
+              context: context,
+              roleBadge: 'Tài khoản B • Thành viên chia sẻ (Shared)',
+              email: 'shared_user_b@e.tlu.edu.vn',
+              displayName: 'Trần Thị B (Shared Member)',
+              uid: 'user_b_shared_tlueduvn',
+              badgeColor: Colors.blue.shade600,
+              icon: Icons.share_rounded,
+              isCurrent: currentEmail == 'shared_user_b@e.tlu.edu.vn',
+              permissionDesc: 'Cấp Viewer (Chỉ xem) hoặc Editor (Sửa), không được Xóa',
+            ),
+            const SizedBox(height: 8),
+
+            // Tài khoản C (Stranger)
+            _buildTestAccountTile(
+              context: context,
+              roleBadge: 'Tài khoản C • Người dùng ngoài (Stranger)',
+              email: 'stranger_user_c@gmail.com',
+              displayName: 'Lê Văn C (Người lạ)',
+              uid: 'user_c_stranger_gmailcom',
+              badgeColor: Colors.red.shade400,
+              icon: Icons.block_rounded,
+              isCurrent: currentEmail == 'stranger_user_c@gmail.com',
+              permissionDesc: 'RLS chặn hoàn toàn truy cập vào tài liệu riêng tư',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTestAccountTile({
+    required BuildContext context,
+    required String roleBadge,
+    required String email,
+    required String displayName,
+    required String uid,
+    required Color badgeColor,
+    required IconData icon,
+    required bool isCurrent,
+    required String permissionDesc,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () async {
+        await _authService.switchAccount(
+          uid: uid,
+          email: email,
+          displayName: displayName,
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: badgeColor,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Đã kích hoạt: $displayName\nEmail: $email'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isCurrent
+              ? badgeColor.withValues(alpha: 0.12)
+              : (isDark ? Colors.grey.shade900 : Colors.grey.shade100),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isCurrent ? badgeColor : Colors.grey.withValues(alpha: 0.25),
+            width: isCurrent ? 1.8 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: badgeColor.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: badgeColor, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          roleBadge,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: badgeColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isCurrent) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: badgeColor,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'ĐANG CHỌN',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    email,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    permissionDesc,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.touch_app_rounded, size: 18, color: Colors.grey),
+          ],
+        ),
+      ),
     );
   }
 }

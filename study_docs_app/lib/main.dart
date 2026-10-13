@@ -1,7 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
 
 import 'database/app_database.dart';
 import 'firebase_options.dart';
@@ -9,6 +8,7 @@ import 'pages/home_dashboard_page.dart';
 import 'struct/cloud_sync_service.dart';
 import 'struct/document_repository.dart';
 import 'struct/document_state_provider.dart';
+import 'struct/supabase_service.dart';
 import 'theme.dart';
 
 void main() async {
@@ -23,9 +23,16 @@ void main() async {
     debugPrint('Firebase initialization warning: $e');
   }
 
+  // Khởi tạo Supabase Cloud Database (PostgreSQL + RLS)
+  try {
+    await SupabaseService().initialize();
+  } catch (e) {
+    debugPrint('Supabase initialization warning: $e');
+  }
+
   // Khởi tạo Database singleton theo kiến trúc Cashew (Local-first)
   final appDb = AppDatabase.instance;
-  await appDb.database;
+  appDb.database;
 
   CloudSyncService? cloudSync;
   try {

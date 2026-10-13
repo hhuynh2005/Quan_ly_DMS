@@ -1,10 +1,16 @@
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 
 import '../functions.dart';
 import '../struct/document_enums.dart';
 import '../struct/document_model.dart';
 import '../struct/document_state_provider.dart';
+import '../struct/firebase_storage_service.dart';
+import '../struct/google_auth_service.dart';
+import '../struct/supabase_service.dart';
 import '../theme.dart';
 import '../widgets/cloud_transfer_progress.dart';
 
@@ -12,11 +18,17 @@ import '../widgets/cloud_transfer_progress.dart';
 class AddEditDocumentPage extends StatefulWidget {
   final Document? documentToEdit;
   final String? initialSubjectId;
+  final String? initialFileName;
+  final Uint8List? initialFileBytes;
+  final int? initialFileSize;
 
   const AddEditDocumentPage({
     super.key,
     this.documentToEdit,
     this.initialSubjectId,
+    this.initialFileName,
+    this.initialFileBytes,
+    this.initialFileSize,
   });
 
   bool get isEditing => documentToEdit != null;
@@ -45,21 +57,47 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
   bool _isSaving = false;
   bool _syncToCloud = true;
 
+  String? _pickedFileName;
+  Uint8List? _pickedFileBytes;
+  int? _pickedFileSize;
+
   @override
   void initState() {
     super.initState();
     final doc = widget.documentToEdit;
 
-    _titleController = TextEditingController(text: doc?.title ?? '');
+    _pickedFileName = widget.initialFileName;
+    _pickedFileBytes = widget.initialFileBytes;
+    _pickedFileSize = widget.initialFileSize;
+
+    if (_pickedFileName != null) {
+      final nameWithoutExt = _pickedFileName!.contains('.')
+          ? _pickedFileName!.substring(0, _pickedFileName!.lastIndexOf('.'))
+          : _pickedFileName!;
+      _titleController = TextEditingController(text: nameWithoutExt.replaceAll('_', ' '));
+      _pathController = TextEditingController(text: _pickedFileName!);
+      final ext = _pickedFileName!.contains('.') ? _pickedFileName!.split('.').last : '';
+      _selectedFormat = DocumentFormatExtension.fromString(ext);
+      if (_pickedFileSize != null) {
+        _fileSizeController = TextEditingController(
+          text: (_pickedFileSize! / (1024 * 1024)).toStringAsFixed(2),
+        );
+      } else {
+        _fileSizeController = TextEditingController(text: '2.5');
+      }
+    } else {
+      _titleController = TextEditingController(text: doc?.title ?? '');
+      _pathController = TextEditingController(text: doc?.filePath ?? '');
+      _fileSizeController = TextEditingController(
+        text: doc != null && doc.fileSizeBytes > 0
+            ? (doc.fileSizeBytes / (1024 * 1024)).toStringAsFixed(2)
+            : '2.5',
+      );
+    }
+
     _descController = TextEditingController(text: doc?.description ?? '');
     _urlController = TextEditingController(text: doc?.fileUrl ?? '');
-    _pathController = TextEditingController(text: doc?.filePath ?? '');
     _tagsController = TextEditingController(text: doc?.tags.join(', ') ?? '');
-    _fileSizeController = TextEditingController(
-      text: doc != null && doc.fileSizeBytes > 0
-          ? (doc.fileSizeBytes / (1024 * 1024)).toStringAsFixed(2)
-          : '2.5',
-    );
 
     _selectedSubjectId = doc?.subjectId ?? widget.initialSubjectId;
     if (doc != null) {
@@ -110,6 +148,86 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
     }
   }
 
+  /// Chọn tệp tài liệu trực tiếp từ máy tính / thiết bị
+  Future<void> _pickFileFromDevice() async {
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: [
+          'pdf',
+          'doc',
+          'docx',
+          'ppt',
+          'pptx',
+          'xls',
+          'xlsx',
+          'txt',
+          'png',
+          'jpg',
+          'jpeg',
+          'zip',
+        ],
+      );
+
+      if (file != null) {
+        final bytes = await file.readAsBytes();
+        final size = (await file.length()) ?? bytes.length;
+        setState(() {
+          _pickedFileName = file.name;
+          _pickedFileBytes = bytes;
+          _pickedFileSize = size;
+
+          // Tự động điền tiêu đề từ tên file (loại bỏ phần mở rộng)
+          final nameWithoutExt = file.name.contains('.')
+              ? file.name.substring(0, file.name.lastIndexOf('.'))
+              : file.name;
+          _titleController.text = nameWithoutExt.replaceAll('_', ' ');
+
+          // Tự động nhận diện định dạng file
+          final ext = file.extension ?? '';
+          _selectedFormat = DocumentFormatExtension.fromString(ext);
+
+          // Cập nhật kích thước file dạng MB
+          final sizeMb = size / (1024 * 1024);
+          _fileSizeController.text = sizeMb.toStringAsFixed(2);
+
+          // Điền đường dẫn tệp
+          _pathController.text = file.name;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF3ECF8E),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Đã chọn tệp: ${file.name} (${(size / 1024).toStringAsFixed(1)} KB)'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[AddEditDocumentPage] Lỗi chọn tệp: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            content: Text('Lỗi khi tải tệp từ máy tính: $e'),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _saveDocument() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -138,7 +256,7 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
         final uploadOk = await CloudTransferProgress.showTransferSheet(
           context: context,
           type: TransferType.upload,
-          fileName: '${_titleController.text.trim()}.${_selectedFormat.name}',
+          fileName: _pickedFileName ?? '${_titleController.text.trim()}.${_selectedFormat.name}',
           totalBytes: sizeBytes > 0 ? sizeBytes : (2.5 * 1024 * 1024).round(),
           fileFormat: _selectedFormat,
         );
@@ -148,11 +266,55 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
         }
       }
 
-      final resolvedUrl = _urlController.text.trim().isNotEmpty
+      String? uploadedUrl;
+      String? storagePath;
+
+      // Nếu có tệp thật từ máy tính và bật đồng bộ đám mây: Tải lên Firebase Storage & Supabase
+      if (_pickedFileBytes != null && _syncToCloud) {
+        final authEmail = GoogleAuthService().currentUserEmail;
+        final authUid = GoogleAuthService().currentUserId.isNotEmpty
+            ? GoogleAuthService().currentUserId
+            : 'user_local';
+        final docId = widget.isEditing ? widget.documentToEdit!.id : const Uuid().v4();
+        final fileName = _pickedFileName ?? '${_titleController.text.trim()}.${_selectedFormat.name}';
+
+        try {
+          final uploadRes = await FirebaseStorageService().uploadDocumentFile(
+            uploaderUid: authUid,
+            documentId: docId,
+            fileName: fileName,
+            bytes: _pickedFileBytes!,
+          );
+          uploadedUrl = uploadRes.downloadUrl;
+          storagePath = uploadRes.storagePath;
+          debugPrint('[AddEditDocumentPage] Tải tệp thành công lên Firebase Storage: $uploadedUrl');
+
+          // Tự động đồng bộ bản ghi tài liệu sang Supabase PostgreSQL
+          await SupabaseService().createDocument(
+            title: _titleController.text.trim(),
+            description: _descController.text.trim(),
+            subject: provider.getSubjectById(_selectedSubjectId!)?.name ?? 'Chung',
+            fileFormat: _selectedFormat.name,
+            fileSizeBytes: sizeBytes,
+            fileUrl: uploadedUrl,
+            storagePath: storagePath,
+            ownerId: authUid,
+            ownerEmail: authEmail,
+            isPublic: false,
+          );
+          debugPrint('[AddEditDocumentPage] Đã lưu thông tin vào bảng documents trên Supabase');
+        } catch (e) {
+          debugPrint('[AddEditDocumentPage] Cảnh báo đồng bộ đám mây: $e');
+        }
+      }
+
+      final resolvedUrl = uploadedUrl ?? (_urlController.text.trim().isNotEmpty
           ? _urlController.text.trim()
           : (_syncToCloud
               ? 'https://firebasestorage.googleapis.com/v0/b/cashew-study-docs.appspot.com/o/${Uri.encodeComponent(_titleController.text.trim())}?alt=media'
-              : null);
+              : null));
+
+      final resolvedPath = storagePath ?? (_pathController.text.trim().isEmpty ? null : _pathController.text.trim());
 
       if (widget.isEditing) {
         final currentDoc = widget.documentToEdit!;
@@ -162,7 +324,7 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
           subjectId: _selectedSubjectId!,
           documentType: _selectedType,
           fileFormat: _selectedFormat,
-          filePath: _pathController.text.trim().isEmpty ? null : _pathController.text.trim(),
+          filePath: resolvedPath,
           fileUrl: resolvedUrl,
           fileSizeBytes: sizeBytes,
           isFavorite: _isFavorite,
@@ -186,7 +348,7 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
           subjectId: _selectedSubjectId!,
           documentType: _selectedType,
           fileFormat: _selectedFormat,
-          filePath: _pathController.text.trim().isEmpty ? null : _pathController.text.trim(),
+          filePath: resolvedPath,
           fileUrl: resolvedUrl,
           fileSizeBytes: sizeBytes,
           isFavorite: _isFavorite,
@@ -218,6 +380,8 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DocumentStateProvider>();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
@@ -252,6 +416,10 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // 0. Khối chọn và tải tệp trực tiếp từ máy tính
+            _buildFilePickerCard(theme, isDark),
+            const SizedBox(height: 18),
+
             // 1. Tiêu đề tài liệu
             TextFormField(
               controller: _titleController,
@@ -550,6 +718,105 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilePickerCard(ThemeData theme, bool isDark) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: _pickedFileName != null
+              ? const Color(0xFF3ECF8E)
+              : theme.colorScheme.primary.withValues(alpha: 0.35),
+          width: 1.5,
+        ),
+      ),
+      color: _pickedFileName != null
+          ? const Color(0xFF3ECF8E).withValues(alpha: 0.08)
+          : (isDark ? Colors.grey.shade900 : Colors.grey.shade50),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _pickedFileName != null
+                        ? const Color(0xFF3ECF8E).withValues(alpha: 0.2)
+                        : theme.colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    _pickedFileName != null
+                        ? _selectedFormat.icon
+                        : Icons.upload_file_rounded,
+                    color: _pickedFileName != null
+                        ? const Color(0xFF3ECF8E)
+                        : theme.colorScheme.primary,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _pickedFileName != null
+                            ? 'Tệp từ máy tính đã chọn'
+                            : 'Tải tệp từ máy tính / thiết bị',
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _pickedFileName != null
+                            ? '$_pickedFileName (${(_pickedFileSize! / 1024).toStringAsFixed(1)} KB)'
+                            : 'Hỗ trợ PDF, DOCX, PPTX, XLSX, TXT, Hình ảnh...',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              icon: Icon(
+                _pickedFileName != null ? Icons.change_circle_rounded : Icons.folder_open_rounded,
+                size: 20,
+              ),
+              label: Text(
+                _pickedFileName != null ? 'Chọn tệp khác từ máy tính' : 'Chọn tệp từ máy tính',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: _pickedFileName != null
+                    ? const Color(0xFF3ECF8E)
+                    : theme.colorScheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: _pickFileFromDevice,
             ),
           ],
         ),
