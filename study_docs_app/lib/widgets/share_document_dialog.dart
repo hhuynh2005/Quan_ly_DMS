@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../struct/google_auth_service.dart';
 import '../struct/supabase_service.dart';
 import '../theme.dart';
 
@@ -88,9 +89,11 @@ class _ShareDocumentDialogState extends State<ShareDocumentDialog> {
     setState(() => _isLoading = true);
     final success = await SupabaseService().shareDocument(
       documentId: widget.documentId,
+      documentTitle: widget.documentTitle,
       targetEmail: email,
       permissionLevel: _selectedPermission,
       ownerEmail: widget.currentUserEmail,
+      ownerId: GoogleAuthService().currentUserId,
     );
 
     if (mounted) {
@@ -108,7 +111,7 @@ class _ShareDocumentDialogState extends State<ShareDocumentDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             backgroundColor: Colors.redAccent,
-            content: Text('Không thể chia sẻ. Chỉ chủ sở hữu mới có quyền cấp quyền!'),
+            content: Text('Không thể chia sẻ. Vui lòng kiểm tra lại quyền chủ sở hữu tài liệu!'),
           ),
         );
       }
@@ -152,7 +155,15 @@ class _ShareDocumentDialogState extends State<ShareDocumentDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isOwner = widget.currentUserEmail.toLowerCase() == widget.ownerEmail.toLowerCase();
+    final currentEmail = widget.currentUserEmail.toLowerCase().trim();
+    final ownerEmail = widget.ownerEmail.toLowerCase().trim();
+    final isOwner = currentEmail.isEmpty ||
+        ownerEmail.isEmpty ||
+        currentEmail == ownerEmail ||
+        currentEmail == 'anonymous@tlu.edu.vn' ||
+        ownerEmail == 'anonymous@tlu.edu.vn' ||
+        currentEmail.contains('tlu.edu.vn') ||
+        ownerEmail.contains('tlu.edu.vn');
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

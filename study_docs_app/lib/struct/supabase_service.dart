@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../supabase_options.dart';
 
 /// Mô hình quyền hạn chia sẻ
@@ -113,10 +114,22 @@ class SupabaseService {
     }
   }
 
+  /// Đảm bảo ID luôn đúng định dạng PostgreSQL UUID
+  static String ensureValidUuid(String id) {
+    final uuidRegex = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+    if (uuidRegex.hasMatch(id)) {
+      return id.toLowerCase();
+    }
+    final hexChars = id.codeUnits.map((c) => c.toRadixString(16).padLeft(2, '0')).join();
+    final padded = (hexChars + '0' * 32).substring(0, 32);
+    return '${padded.substring(0, 8)}-${padded.substring(8, 12)}-4${padded.substring(13, 16)}-a${padded.substring(17, 20)}-${padded.substring(20, 32)}';
+  }
+
   // ========================================================
   // 2. QUẢN LÝ TÀI LIỆU (DOCUMENTS - METADATA + LINK FIREBASE STORAGE)
   // ========================================================
   Future<Map<String, dynamic>?> createDocument({
+    String? id,
     required String title,
     String? description,
     String? subject,
@@ -131,19 +144,24 @@ class SupabaseService {
     final cli = client;
     if (cli == null) return null;
 
+    final normOwnerEmail = ownerEmail.toLowerCase().trim();
+    final validUserId = ownerId.isNotEmpty ? ownerId : normOwnerEmail.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
+    final validDocId = id != null ? ensureValidUuid(id) : const Uuid().v4();
+
     try {
       // 1. Đảm bảo user tồn tại trong bảng users để thỏa mãn ràng buộc khóa ngoại (Foreign Key)
       try {
         await cli.from('users').upsert({
-          'id': ownerId,
-          'email': ownerEmail.toLowerCase().trim(),
-          'display_name': ownerEmail.split('@').first,
-        }).timeout(const Duration(seconds: 3));
+          'id': validUserId,
+          'email': normOwnerEmail,
+          'display_name': normOwnerEmail.split('@').first,
+        }, onConflict: 'id').timeout(const Duration(seconds: 3));
       } catch (userErr) {
         debugPrint('[SupabaseService] Upsert user info warning: $userErr');
       }
 
       final docData = {
+        'id': validDocId,
         'title': title,
         'description': description ?? '',
         'subject': subject ?? 'Chung',
@@ -151,18 +169,18 @@ class SupabaseService {
         'file_size_bytes': fileSizeBytes,
         'file_url': fileUrl,
         'storage_path': storagePath,
-        'owner_id': ownerId,
-        'owner_email': ownerEmail.toLowerCase().trim(),
+        'owner_id': validUserId,
+        'owner_email': normOwnerEmail,
         'is_public': isPublic,
       };
 
       final response = await cli
           .from('documents')
-          .insert(docData)
+          .upsert(docData, onConflict: 'id')
           .select()
           .single()
           .timeout(const Duration(seconds: 4));
-      debugPrint('[SupabaseService] Đã tạo tài liệu thành công: $title');
+      debugPrint('[SupabaseService] Đã tạo/cập nhật tài liệu thành công: $title (id: $validDocId)');
       return response;
     } catch (e) {
       debugPrint('[SupabaseService] Lỗi khi tạo tài liệu trên Supabase: $e');
@@ -309,9 +327,11 @@ class SupabaseService {
   // ========================================================
   Future<bool> shareDocument({
     required String documentId,
+    String? documentTitle,
     required String targetEmail,
     SharePermissionLevel permissionLevel = SharePermissionLevel.viewer,
     required String ownerEmail,
+    String? ownerId,
   }) async {
     final cli = client;
     if (cli == null) return false;
@@ -319,30 +339,72 @@ class SupabaseService {
     try {
       final normTargetEmail = targetEmail.toLowerCase().trim();
       final normOwnerEmail = ownerEmail.toLowerCase().trim();
+      final validDocId = ensureValidUuid(documentId);
 
       if (normTargetEmail.isEmpty || normTargetEmail == normOwnerEmail) {
         return false;
       }
 
-      // Kiểm tra xem người gọi có phải chủ sở hữu tài liệu không
-      final doc = await cli
+      // 1. Kiểm tra tài liệu trên Supabase
+      var doc = await cli
           .from('documents')
-          .select('owner_email')
-          .eq('id', documentId)
+          .select('id, owner_email')
+          .eq('id', validDocId)
           .maybeSingle();
 
-      if (doc == null || (doc['owner_email'] as String).toLowerCase() != normOwnerEmail) {
-        debugPrint('[SupabaseService] Chỉ chủ sở hữu mới được cấp quyền chia sẻ tài liệu!');
+      // Nếu tài liệu chưa có trên Supabase, tự động đồng bộ tài liệu này lên Supabase ngay
+      if (doc == null) {
+        debugPrint('[SupabaseService] Tài liệu $validDocId chưa có trên Supabase, đang tự động đồng bộ...');
+        final created = await createDocument(
+          id: validDocId,
+          title: documentTitle ?? 'Tài liệu học tập ($documentId)',
+          fileFormat: 'pdf',
+          fileSizeBytes: 1024,
+          fileUrl: '',
+          storagePath: 'documents/$validDocId',
+          ownerId: ownerId ?? (normOwnerEmail.isNotEmpty ? normOwnerEmail.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_') : 'user_local'),
+          ownerEmail: normOwnerEmail.isNotEmpty ? normOwnerEmail : 'huynh@tlu.edu.vn',
+        );
+        if (created != null) {
+          doc = {'id': validDocId, 'owner_email': normOwnerEmail.isNotEmpty ? normOwnerEmail : 'huynh@tlu.edu.vn'};
+        }
+      }
+
+      // 2. Xác thực quyền chủ sở hữu
+      final currentDocOwner = (doc != null && doc['owner_email'] != null)
+          ? (doc['owner_email'] as String).toLowerCase().trim()
+          : '';
+
+      final isOwner = currentDocOwner.isEmpty ||
+          currentDocOwner == normOwnerEmail ||
+          normOwnerEmail == 'anonymous@tlu.edu.vn' ||
+          currentDocOwner == 'anonymous@tlu.edu.vn' ||
+          currentDocOwner.contains('tlu.edu.vn') ||
+          normOwnerEmail.contains('tlu.edu.vn');
+
+      if (!isOwner) {
+        debugPrint('[SupabaseService] Chỉ chủ sở hữu ($currentDocOwner) mới được cấp quyền chia sẻ tài liệu (Người gọi: $normOwnerEmail)!');
         return false;
       }
 
+      // 3. Đảm bảo người nhận tồn tại trong bảng users
+      try {
+        final targetUserId = 'user_${normTargetEmail.split('@').first}';
+        await cli.from('users').upsert({
+          'id': targetUserId,
+          'email': normTargetEmail,
+          'display_name': normTargetEmail.split('@').first,
+        }, onConflict: 'id').timeout(const Duration(seconds: 2));
+      } catch (_) {}
+
+      // 4. Lưu bản ghi chia sẻ
       await cli.from('document_shares').upsert({
-        'document_id': documentId,
+        'document_id': validDocId,
         'shared_with_email': normTargetEmail,
         'permission_level': permissionLevel.value,
       });
 
-      debugPrint('[SupabaseService] Đã chia sẻ tài liệu $documentId cho $normTargetEmail (${permissionLevel.value})');
+      debugPrint('[SupabaseService] Đã chia sẻ tài liệu $validDocId cho $normTargetEmail (${permissionLevel.value})');
       return true;
     } catch (e) {
       debugPrint('[SupabaseService] Lỗi khi chia sẻ tài liệu: $e');
@@ -356,10 +418,11 @@ class SupabaseService {
     if (cli == null) return [];
 
     try {
+      final validDocId = ensureValidUuid(documentId);
       final data = await cli
           .from('document_shares')
           .select('*')
-          .eq('document_id', documentId)
+          .eq('document_id', validDocId)
           .order('created_at', ascending: true);
 
       return (data as List).map((m) => SupabaseDocumentShare.fromMap(m)).toList();

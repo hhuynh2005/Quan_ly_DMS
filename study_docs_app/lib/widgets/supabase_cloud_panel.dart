@@ -53,6 +53,7 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
     int count = 0;
     for (final doc in provider.allDocuments) {
       final res = await SupabaseService().createDocument(
+        id: doc.id,
         title: doc.title,
         description: doc.description,
         subject: provider.getSubjectById(doc.subjectId)?.name ?? 'Chung',

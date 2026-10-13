@@ -766,6 +766,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
             ? GoogleAuthService().currentUserEmail
             : 'huynh@tlu.edu.vn';
         await SupabaseService().createDocument(
+          id: widget.document.id,
           title: widget.document.title,
           description: widget.document.description,
           subject: provider.getSubjectById(widget.document.subjectId)?.name ?? 'Chung',

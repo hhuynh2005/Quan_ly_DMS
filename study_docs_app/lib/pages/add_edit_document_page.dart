@@ -311,6 +311,7 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
       if (_syncToCloud) {
         try {
           await SupabaseService().createDocument(
+            id: docId,
             title: _titleController.text.trim(),
             description: _descController.text.trim(),
             subject: provider.getSubjectById(_selectedSubjectId!)?.name ?? 'Chung',
