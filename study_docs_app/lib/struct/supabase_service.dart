@@ -67,7 +67,7 @@ class SupabaseService {
     try {
       await Supabase.initialize(
         url: SupabaseConfig.url,
-        anonKey: SupabaseConfig.anonKey,
+        publishableKey: SupabaseConfig.anonKey,
       );
       _isInitialized = true;
       debugPrint('[SupabaseService] Khởi tạo thành công kết nối tới ${SupabaseConfig.url}');

@@ -412,10 +412,10 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                   ),
 
                   // 0.3 Bảng điều khiển Supabase Cloud Database & RLS Security
-                  const SliverToBoxAdapter(
+                  SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-                      child: SupabaseCloudPanel(),
+                      child: const SupabaseCloudPanel(),
                     ),
                   ),
                   // 1. Thẻ chào mừng sinh viên & môn học
@@ -794,9 +794,10 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                     'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg', 'zip'
                   ],
                 );
-                if (file != null && context.mounted) {
+                if (file != null) {
                   final bytes = await file.readAsBytes();
                   final size = (await file.length()) ?? bytes.length;
+                  if (!context.mounted) return;
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => AddEditDocumentPage(
