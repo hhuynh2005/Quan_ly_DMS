@@ -100,7 +100,14 @@ class CloudSyncService {
       localRecords: await _database.getAllDocuments(),
       idOf: (document) => document.id,
       modifiedAtOf: (document) => document.dateModified,
-      dataOf: (document) => document.toMap(),
+      dataOf: (document) {
+        final data = document.toMap();
+        data['uploaderUid'] = user.uid;
+        data['uploaderEmail'] = user.email ?? '';
+        data['uploaderName'] = user.displayName ?? (user.email?.split('@').first ?? '');
+        data['syncedAt'] = DateTime.now().toUtc().toIso8601String();
+        return data;
+      },
       fromData: Document.fromMap,
       applyRemote: _database.applySyncedDocument,
     );
@@ -110,6 +117,9 @@ class CloudSyncService {
 
     uploaded += await _mergeDeleteLogs(userRef);
     await userRef.set({
+      'uid': user.uid,
+      'email': user.email ?? '',
+      'displayName': user.displayName ?? (user.email?.split('@').first ?? ''),
       'lastSyncedAt': DateTime.now().toUtc().toIso8601String(),
       'schemaVersion': 1,
     }, SetOptions(merge: true));

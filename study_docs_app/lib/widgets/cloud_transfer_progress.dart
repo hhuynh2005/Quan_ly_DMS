@@ -329,7 +329,7 @@ class _InteractiveTransferModalState extends State<_InteractiveTransferModal> {
   Timer? _timer;
   int _transferredBytes = 0;
   TransferStatus _status = TransferStatus.transferring;
-  final double _speedMbps = 3.2;
+  final double _speedMbps = 35.0;
 
   @override
   void initState() {
@@ -339,7 +339,7 @@ class _InteractiveTransferModalState extends State<_InteractiveTransferModal> {
 
   void _startTransfer() {
     _status = TransferStatus.transferring;
-    const intervalMs = 80;
+    const intervalMs = 50;
     // Mỗi step tăng một lượng byte dựa theo tốc độ
     final bytesPerStep = ((_speedMbps * 1024 * 1024) / (1000 / intervalMs)).round();
 
@@ -355,6 +355,9 @@ class _InteractiveTransferModalState extends State<_InteractiveTransferModal> {
           _transferredBytes = widget.totalBytes;
           _status = TransferStatus.completed;
           t.cancel();
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) Navigator.of(context).pop(true);
+          });
         }
       });
     });

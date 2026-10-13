@@ -269,15 +269,17 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
       String? uploadedUrl;
       String? storagePath;
 
-      // Nếu có tệp thật từ máy tính và bật đồng bộ đám mây: Tải lên Firebase Storage & Supabase
-      if (_pickedFileBytes != null && _syncToCloud) {
-        final authEmail = GoogleAuthService().currentUserEmail;
-        final authUid = GoogleAuthService().currentUserId.isNotEmpty
-            ? GoogleAuthService().currentUserId
-            : 'user_local';
-        final docId = widget.isEditing ? widget.documentToEdit!.id : const Uuid().v4();
-        final fileName = _pickedFileName ?? '${_titleController.text.trim()}.${_selectedFormat.name}';
+      final docId = widget.isEditing ? widget.documentToEdit!.id : const Uuid().v4();
+      final authEmail = GoogleAuthService().currentUserEmail.isNotEmpty
+          ? GoogleAuthService().currentUserEmail
+          : 'anonymous@tlu.edu.vn';
+      final authUid = GoogleAuthService().currentUserId.isNotEmpty
+          ? GoogleAuthService().currentUserId
+          : 'user_local';
 
+      // 1. Tải tệp vật lý từ máy tính lên Firebase Storage
+      if (_pickedFileBytes != null && _syncToCloud) {
+        final fileName = _pickedFileName ?? '${_titleController.text.trim()}.${_selectedFormat.name}';
         try {
           final uploadRes = await FirebaseStorageService().uploadDocumentFile(
             uploaderUid: authUid,
@@ -288,23 +290,8 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
           uploadedUrl = uploadRes.downloadUrl;
           storagePath = uploadRes.storagePath;
           debugPrint('[AddEditDocumentPage] Tải tệp thành công lên Firebase Storage: $uploadedUrl');
-
-          // Tự động đồng bộ bản ghi tài liệu sang Supabase PostgreSQL
-          await SupabaseService().createDocument(
-            title: _titleController.text.trim(),
-            description: _descController.text.trim(),
-            subject: provider.getSubjectById(_selectedSubjectId!)?.name ?? 'Chung',
-            fileFormat: _selectedFormat.name,
-            fileSizeBytes: sizeBytes,
-            fileUrl: uploadedUrl,
-            storagePath: storagePath,
-            ownerId: authUid,
-            ownerEmail: authEmail,
-            isPublic: false,
-          );
-          debugPrint('[AddEditDocumentPage] Đã lưu thông tin vào bảng documents trên Supabase');
         } catch (e) {
-          debugPrint('[AddEditDocumentPage] Cảnh báo đồng bộ đám mây: $e');
+          debugPrint('[AddEditDocumentPage] Cảnh báo tải Firebase Storage: $e');
         }
       }
 
@@ -315,6 +302,27 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
               : null));
 
       final resolvedPath = storagePath ?? (_pathController.text.trim().isEmpty ? null : _pathController.text.trim());
+
+      // 2. Lưu Metadata tài liệu lên Supabase PostgreSQL (có đầy đủ owner_email và owner_id)
+      if (_syncToCloud) {
+        try {
+          await SupabaseService().createDocument(
+            title: _titleController.text.trim(),
+            description: _descController.text.trim(),
+            subject: provider.getSubjectById(_selectedSubjectId!)?.name ?? 'Chung',
+            fileFormat: _selectedFormat.name,
+            fileSizeBytes: sizeBytes,
+            fileUrl: resolvedUrl ?? '',
+            storagePath: resolvedPath ?? 'documents/$docId',
+            ownerId: authUid,
+            ownerEmail: authEmail,
+            isPublic: false,
+          );
+          debugPrint('[AddEditDocumentPage] Đã lưu vào bảng documents trên Supabase (Owner: $authEmail)');
+        } catch (e) {
+          debugPrint('[AddEditDocumentPage] Cảnh báo lưu Supabase: $e');
+        }
+      }
 
       if (widget.isEditing) {
         final currentDoc = widget.documentToEdit!;
