@@ -20,8 +20,17 @@ import 'add_edit_document_page.dart';
 /// Màn hình Chi tiết Tài liệu học tập (Xem, Chuyển trạng thái, Sửa, Xóa)
 class DocumentDetailPage extends StatelessWidget {
   final String documentId;
+  final Document? initialDocument;
+  final String? sharedByEmail;
+  final String? permissionLevel;
 
-  const DocumentDetailPage({super.key, required this.documentId});
+  const DocumentDetailPage({
+    super.key,
+    required this.documentId,
+    this.initialDocument,
+    this.sharedByEmail,
+    this.permissionLevel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -29,11 +38,13 @@ class DocumentDetailPage extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    Document? doc;
-    try {
-      doc = provider.allDocuments.firstWhere((d) => d.id == documentId);
-    } catch (_) {
-      doc = null;
+    Document? doc = initialDocument;
+    if (doc == null) {
+      try {
+        doc = provider.allDocuments.firstWhere((d) => d.id == documentId);
+      } catch (_) {
+        doc = null;
+      }
     }
 
     if (doc == null) {
@@ -48,10 +59,43 @@ class DocumentDetailPage extends StatelessWidget {
     final typeColor = document.documentType.color;
     final formatColor = document.fileFormat.color;
 
+    final currentEmail = GoogleAuthService().currentUserEmail.toLowerCase().trim();
+    String? resolvedOwnerEmail = sharedByEmail;
+    if (resolvedOwnerEmail == null) {
+      for (final t in document.tags) {
+        if (t.startsWith('owner:')) {
+          resolvedOwnerEmail = t.substring(6).toLowerCase().trim();
+          break;
+        }
+      }
+    }
+    final isSharedDocument = resolvedOwnerEmail != null &&
+        resolvedOwnerEmail.isNotEmpty &&
+        currentEmail.isNotEmpty &&
+        resolvedOwnerEmail != currentEmail;
+    final isSavedLocally = provider.allDocuments.any((d) => d.id == document.id);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chi Tiết Tài Liệu'),
         actions: [
+          // Nút Lưu về máy (nếu là tài liệu chia sẻ từ Cloud chưa lưu trong SQLite)
+          if (!isSavedLocally)
+            IconButton(
+              icon: const Icon(Icons.download_for_offline_rounded, color: Color(0xFF3ECF8E)),
+              tooltip: 'Lưu tài liệu vào SQLite cục bộ',
+              onPressed: () async {
+                await provider.importSyncedDocument(document);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: Color(0xFF3ECF8E),
+                      content: Text('Đã lưu tài liệu vào bộ nhớ máy (SQLite)!'),
+                    ),
+                  );
+                }
+              },
+            ),
           // Nút Favorite
           IconButton(
             icon: Icon(
@@ -64,23 +108,36 @@ class DocumentDetailPage extends StatelessWidget {
               provider.toggleFavorite(document.id);
             },
           ),
-          // Nút Chia sẻ tài liệu (Supabase RLS & Permissions)
-          IconButton(
-            icon: const Icon(Icons.share_rounded),
-            tooltip: 'Chia sẻ tài liệu (Supabase RLS)',
-            onPressed: () {
-              final currentEmail = GoogleAuthService().currentUserEmail.isNotEmpty
-                  ? GoogleAuthService().currentUserEmail
-                  : 'anonymous@tlu.edu.vn';
-              ShareDocumentDialog.show(
-                context: context,
-                documentId: document.id,
-                documentTitle: document.title,
-                ownerEmail: currentEmail,
-                currentUserEmail: currentEmail,
-              );
-            },
-          ),
+          // Nút Chia sẻ tài liệu (Supabase RLS & Permissions - Chỉ chủ sở hữu)
+          if (!isSharedDocument)
+            IconButton(
+              icon: const Icon(Icons.share_rounded),
+              tooltip: 'Chia sẻ tài liệu (Supabase RLS)',
+              onPressed: () {
+                final cEmail = GoogleAuthService().currentUserEmail.isNotEmpty
+                    ? GoogleAuthService().currentUserEmail
+                    : 'anonymous@tlu.edu.vn';
+                ShareDocumentDialog.show(
+                  context: context,
+                  documentId: document.id,
+                  documentTitle: document.title,
+                  ownerEmail: cEmail,
+                  currentUserEmail: cEmail,
+                );
+              },
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.share_rounded, color: Colors.grey),
+              tooltip: 'Chỉ chủ sở hữu ($resolvedOwnerEmail) mới có quyền chia sẻ',
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Chỉ chủ sở hữu ($resolvedOwnerEmail) mới có quyền chia sẻ tài liệu này.'),
+                  ),
+                );
+              },
+            ),
           // Nút Sửa
           IconButton(
             icon: const Icon(Icons.edit_rounded),
@@ -93,47 +150,100 @@ class DocumentDetailPage extends StatelessWidget {
               );
             },
           ),
-          // Nút Xóa
-          IconButton(
-            icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-            tooltip: 'Xóa tài liệu',
-            onPressed: () async {
-              final confirm = await ConfirmDialog.show(
-                context: context,
-                title: 'Xóa tài liệu này?',
-                message:
-                    'Bạn có chắc chắn muốn xóa "${document.title}"? Dữ liệu sẽ được lưu vào delete_logs của hệ thống.',
-              );
+          // Nút Xóa (Chỉ chủ sở hữu mới có quyền xóa theo RLS)
+          if (!isSharedDocument)
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+              tooltip: 'Xóa tài liệu',
+              onPressed: () async {
+                final confirm = await ConfirmDialog.show(
+                  context: context,
+                  title: 'Xóa tài liệu này?',
+                  message:
+                      'Bạn có chắc chắn muốn xóa "${document.title}"? Dữ liệu sẽ được lưu vào delete_logs của hệ thống.',
+                );
 
-              if (confirm && context.mounted) {
-                try {
-                  await provider.deleteDocument(document.id);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Đã xóa tài liệu thành công!'),
-                      ),
-                    );
-                    Navigator.of(context).pop();
-                  }
-                } catch (error) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Không thể xóa tài liệu: $error'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
+                if (confirm && context.mounted) {
+                  try {
+                    await provider.deleteDocument(document.id);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Đã xóa tài liệu thành công!'),
+                        ),
+                      );
+                      Navigator.of(context).pop();
+                    }
+                  } catch (error) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Không thể xóa tài liệu: $error'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   }
                 }
-              }
-            },
-          ),
+              },
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded, color: Colors.grey),
+              tooltip: 'Chỉ chủ sở hữu ($resolvedOwnerEmail) mới có quyền xóa tài liệu',
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Chỉ chủ sở hữu ($resolvedOwnerEmail) mới có quyền xóa tài liệu theo chính sách RLS.'),
+                  ),
+                );
+              },
+            ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Banner tài liệu được chia sẻ (nếu có)
+          if (isSharedDocument)
+            Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.blue.shade400, width: 1.2),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.share_rounded, color: Colors.blue, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Tài Liệu Được Chia Sẻ',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Chia sẻ bởi: $resolvedOwnerEmail\nQuyền: ${permissionLevel ?? "Chỉ xem (Viewer)"} • Bảo vệ bằng Supabase RLS',
+                          style: TextStyle(fontSize: 11.5, color: isDark ? Colors.white70 : Colors.black87),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // 1. Thẻ Header tổng quan
           Card(
             elevation: 2,

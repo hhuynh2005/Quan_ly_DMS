@@ -194,6 +194,31 @@ class DocumentCard extends StatelessWidget {
                     status: document.cloudSyncStatus,
                     compact: false,
                   ),
+                  if (document.tags.contains('shared') || document.tags.any((t) => t.startsWith('owner:'))) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.share_rounded, size: 10, color: Colors.blue),
+                          SizedBox(width: 3),
+                          Text(
+                            'Được chia sẻ',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
 
                   const Spacer(),
 

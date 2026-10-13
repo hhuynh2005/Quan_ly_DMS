@@ -98,6 +98,11 @@ class DocumentRepository {
     return newDoc;
   }
 
+  /// Lưu hoặc cập nhật tài liệu đã đồng bộ từ Đám mây (Supabase/Firebase) vào SQLite
+  Future<void> saveSyncedDocument(Document document) async {
+    await _db.applySyncedDocument(document);
+  }
+
   /// Cập nhật thông tin tài liệu
   Future<Document> updateDocument(Document document) async {
     final cleanTitle = document.title.trim();

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
+import '../pages/document_detail_page.dart';
+import '../struct/document_enums.dart';
+import '../struct/document_model.dart';
 import '../struct/document_state_provider.dart';
 import '../struct/google_auth_service.dart';
 import '../struct/supabase_service.dart';
@@ -23,11 +27,84 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
   void initState() {
     super.initState();
     _fetchStats();
+    GoogleAuthService.activeUserNotifier.addListener(_onUserChanged);
+  }
+
+  void _onUserChanged() {
+    if (mounted) {
+      _fetchStats();
+    }
+  }
+
+  @override
+  void dispose() {
+    GoogleAuthService.activeUserNotifier.removeListener(_onUserChanged);
+    super.dispose();
+  }
+
+  Document _mapToDocument(Map<String, dynamic> doc) {
+    final provider = context.read<DocumentStateProvider>();
+    final rawFormat = (doc['file_format'] ?? 'pdf').toString().toLowerCase();
+    DocumentFormat fmt = DocumentFormat.pdf;
+    for (final f in DocumentFormat.values) {
+      if (f.name.toLowerCase() == rawFormat) {
+        fmt = f;
+        break;
+      }
+    }
+
+    String subjectId = 'subj_cse441';
+    final subjName = (doc['subject'] ?? '').toString().toLowerCase();
+    for (final s in provider.subjects) {
+      if (s.name.toLowerCase().contains(subjName) || subjName.contains(s.name.toLowerCase())) {
+        subjectId = s.id;
+        break;
+      }
+    }
+    if (provider.subjects.isNotEmpty && !provider.subjects.any((s) => s.id == subjectId)) {
+      subjectId = provider.subjects.first.id;
+    }
+
+    final ownerEmail = (doc['owner_email'] ?? '').toString();
+
+    return Document(
+      id: doc['id']?.toString() ?? const Uuid().v4(),
+      title: doc['title']?.toString() ?? 'Tài liệu không tên',
+      description: doc['description']?.toString() ?? '',
+      subjectId: subjectId,
+      documentType: DocumentType.reference,
+      fileFormat: fmt,
+      fileUrl: doc['file_url']?.toString(),
+      filePath: doc['storage_path']?.toString(),
+      fileSizeBytes: (doc['file_size_bytes'] as num?)?.toInt() ?? 1024,
+      tags: ownerEmail.isNotEmpty ? ['shared', 'owner:$ownerEmail'] : ['shared'],
+      dateCreated: DateTime.tryParse(doc['created_at']?.toString() ?? '') ?? DateTime.now(),
+      dateModified: DateTime.tryParse(doc['updated_at']?.toString() ?? '') ?? DateTime.now(),
+      cloudSyncStatus: CloudSyncStatus.synced,
+    );
   }
 
   Future<void> _fetchStats() async {
-    final email = GoogleAuthService().currentUserEmail;
+    final email = GoogleAuthService().currentUserEmail.toLowerCase().trim();
     final docs = await SupabaseService().getDocuments(currentUserEmail: email);
+
+    // Tự động đồng bộ các tài liệu được chia sẻ vào SQLite nếu chưa có
+    if (mounted && docs.isNotEmpty) {
+      final provider = context.read<DocumentStateProvider>();
+      final localIds = provider.allDocuments.map((d) => d.id).toSet();
+
+      for (final doc in docs) {
+        final docOwner = (doc['owner_email'] ?? '').toString().toLowerCase().trim();
+        final docId = doc['id']?.toString() ?? '';
+        final isShared = email.isNotEmpty && docOwner.isNotEmpty && docOwner != email;
+
+        if (isShared && !localIds.contains(docId)) {
+          final docModel = _mapToDocument(doc);
+          await provider.importSyncedDocument(docModel);
+        }
+      }
+    }
+
     if (mounted) {
       setState(() {
         _cloudDocCount = docs.length;
@@ -89,6 +166,18 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final provider = context.watch<DocumentStateProvider>();
+    final currentEmail = GoogleAuthService().currentUserEmail.toLowerCase().trim();
+
+    final sharedDocs = _cloudDocs.where((d) {
+      final owner = (d['owner_email'] ?? '').toString().toLowerCase().trim();
+      return currentEmail.isNotEmpty && owner.isNotEmpty && owner != currentEmail;
+    }).toList();
+
+    final myDocs = _cloudDocs.where((d) {
+      final owner = (d['owner_email'] ?? '').toString().toLowerCase().trim();
+      return owner == currentEmail || (currentEmail.isEmpty && owner.isNotEmpty);
+    }).toList();
 
     return Card(
       elevation: 1,
@@ -145,6 +234,24 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
                                 ),
                               ),
                             ),
+                            if (sharedDocs.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '+${sharedDocs.length} ĐƯỢC CHIA SẺ',
+                                  style: const TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                         Text(
@@ -190,6 +297,144 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
                 ),
               ),
               const SizedBox(height: 12),
+
+              // 📥 KHU VỰC TÀI LIỆU ĐƯỢC CHIA SẺ VỚI BẠN (SHARED WITH ME)
+              if (sharedDocs.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.withValues(alpha: 0.3), width: 1.2),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.mark_email_read_rounded, size: 18, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Tài liệu được chia sẻ với bạn (${sharedDocs.length}):',
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.blue),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                            icon: const Icon(Icons.sync_rounded, size: 14),
+                            label: const Text('Đồng bộ tất cả về SQLite', style: TextStyle(fontSize: 11)),
+                            onPressed: () async {
+                              for (final doc in sharedDocs) {
+                                await provider.importSyncedDocument(_mapToDocument(doc));
+                              }
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    backgroundColor: Colors.blue,
+                                    content: Text('Đã đồng bộ toàn bộ tài liệu được chia sẻ vào SQLite!'),
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ...sharedDocs.map((doc) {
+                        final docId = doc['id']?.toString() ?? '';
+                        final title = doc['title'] ?? 'Chưa đặt tên';
+                        final owner = doc['owner_email'] ?? 'N/A';
+                        final fmt = (doc['file_format'] ?? 'DOC').toString().toUpperCase();
+                        final isSavedLocally = provider.allDocuments.any((d) => d.id == docId);
+
+                        return Container(
+                          margin: const EdgeInsets.only(top: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white10 : Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(5),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  fmt,
+                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                                    ),
+                                    Text(
+                                      'Chia sẻ bởi: $owner • Quyền: Chỉ xem (Viewer)',
+                                      style: const TextStyle(fontSize: 10.5, color: Colors.grey),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Nút Xem ngay
+                              IconButton(
+                                icon: const Icon(Icons.visibility_rounded, size: 18, color: Colors.blue),
+                                tooltip: 'Xem chi tiết tài liệu',
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => DocumentDetailPage(
+                                        documentId: docId,
+                                        initialDocument: _mapToDocument(doc),
+                                        sharedByEmail: owner,
+                                        permissionLevel: 'Viewer',
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              // Trạng thái lưu SQLite
+                              if (isSavedLocally)
+                                const Tooltip(
+                                  message: 'Đã lưu trên SQLite máy',
+                                  child: Icon(Icons.check_circle_rounded, size: 18, color: Color(0xFF3ECF8E)),
+                                )
+                              else
+                                IconButton(
+                                  icon: const Icon(Icons.download_rounded, size: 18, color: Color(0xFF3ECF8E)),
+                                  tooltip: 'Lưu vào SQLite máy',
+                                  onPressed: () async {
+                                    await provider.importSyncedDocument(_mapToDocument(doc));
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          backgroundColor: Color(0xFF3ECF8E),
+                                          content: Text('Đã lưu tài liệu vào máy!'),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
               // Trạng thái đồng bộ
               if (_statusMessage != null)
                 Padding(
@@ -247,14 +492,14 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
                   ),
                 ],
               ),
-              if (_cloudDocs.isNotEmpty) ...[
+              if (myDocs.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 Row(
                   children: [
                     const Icon(Icons.cloud_done_rounded, size: 16, color: Color(0xFF3ECF8E)),
                     const SizedBox(width: 6),
                     Text(
-                      'Tài liệu thực tế trên Supabase Database (${_cloudDocs.length}):',
+                      'Tài liệu của bạn trên Supabase Database (${myDocs.length}):',
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -264,10 +509,10 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
                   constraints: const BoxConstraints(maxHeight: 180),
                   child: ListView.separated(
                     shrinkWrap: true,
-                    itemCount: _cloudDocs.length,
+                    itemCount: myDocs.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (ctx, i) {
-                      final doc = _cloudDocs[i];
+                      final doc = myDocs[i];
                       final title = doc['title'] ?? 'Chưa đặt tên';
                       final owner = doc['owner_email'] ?? doc['owner_id'] ?? 'N/A';
                       final fmt = (doc['file_format'] ?? 'DOC').toString().toUpperCase();
@@ -292,7 +537,7 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
                           style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
                         ),
                         subtitle: Text(
-                          'Người tải / Chủ sở hữu: $owner',
+                          'Chủ sở hữu: $owner',
                           style: const TextStyle(fontSize: 11, color: Colors.grey),
                         ),
                         trailing: const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF3ECF8E)),

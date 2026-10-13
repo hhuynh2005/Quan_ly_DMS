@@ -413,6 +413,11 @@ class DocumentStateProvider extends ChangeNotifier {
     return doc;
   }
 
+  /// Nhập tài liệu được chia sẻ từ Đám mây (Supabase) vào SQLite cục bộ
+  Future<void> importSyncedDocument(Document doc) async {
+    await _repository.saveSyncedDocument(doc);
+  }
+
   Future<Document> updateDocument(Document doc) async {
     final updated = await _repository.updateDocument(doc);
     _scheduleSync();
