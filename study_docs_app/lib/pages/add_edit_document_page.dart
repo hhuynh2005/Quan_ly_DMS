@@ -12,7 +12,6 @@ import '../struct/firebase_storage_service.dart';
 import '../struct/google_auth_service.dart';
 import '../struct/supabase_service.dart';
 import '../theme.dart';
-import '../widgets/cloud_transfer_progress.dart';
 
 /// Màn hình Thêm mới hoặc Chỉnh sửa Tài liệu học tập (CRUD Create / Update)
 class AddEditDocumentPage extends StatefulWidget {
@@ -250,21 +249,6 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
 
       final sizeMb = double.tryParse(_fileSizeController.text.trim()) ?? 0.0;
       final sizeBytes = (sizeMb * 1024 * 1024).round();
-
-      // Kích hoạt thanh tiến trình tải tệp Cloud Upload Progress (Nguyễn Trung Kiên)
-      if (_syncToCloud) {
-        final uploadOk = await CloudTransferProgress.showTransferSheet(
-          context: context,
-          type: TransferType.upload,
-          fileName: _pickedFileName ?? '${_titleController.text.trim()}.${_selectedFormat.name}',
-          totalBytes: sizeBytes > 0 ? sizeBytes : (2.5 * 1024 * 1024).round(),
-          fileFormat: _selectedFormat,
-        );
-        if (!uploadOk && mounted) {
-          setState(() => _isSaving = false);
-          return;
-        }
-      }
 
       String? uploadedUrl;
       String? storagePath;

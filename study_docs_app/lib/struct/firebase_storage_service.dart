@@ -43,7 +43,7 @@ class FirebaseStorageService {
   FirebaseStorageService._internal();
 
   /// Tên Bucket Firebase Storage mặc định của nhóm
-  static const String defaultBucket = 'cashew-study-docs.firebasestorage.app';
+  static const String defaultBucket = 'cashew-study-docs-d5b15.firebasestorage.app';
 
   /// Cờ ép buộc dùng Mock Mode (phục vụ Unit Testing và chạy Offline)
   bool forceMockMode = false;
@@ -62,8 +62,17 @@ class FirebaseStorageService {
     }
   }
 
-  FirebaseStorage get _storage =>
-      FirebaseStorage.instanceFor(bucket: defaultBucket);
+  FirebaseStorage get _storage {
+    try {
+      if (Firebase.apps.isNotEmpty) {
+        final optBucket = Firebase.app().options.storageBucket;
+        if (optBucket != null && optBucket.isNotEmpty) {
+          return FirebaseStorage.instanceFor(bucket: optBucket);
+        }
+      }
+    } catch (_) {}
+    return FirebaseStorage.instanceFor(bucket: defaultBucket);
+  }
 
   /// Chuẩn hóa đường dẫn lưu trữ theo cấu trúc thư mục phân tầng:
   /// documents/{uploaderUid}/{documentId}/{sanitizedFileName}
@@ -186,8 +195,14 @@ class FirebaseStorageService {
         });
       }
 
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
+      final snapshot = await uploadTask.timeout(
+        const Duration(seconds: 4),
+        onTimeout: () => throw TimeoutException('Tải tệp lên Firebase Storage quá thời gian (hơn 4s).'),
+      );
+      final downloadUrl = await snapshot.ref.getDownloadURL().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => 'https://firebasestorage.googleapis.com/v0/b/$defaultBucket/o/${Uri.encodeComponent(storagePath)}?alt=media',
+      );
 
       debugPrint('[FirebaseStorageService] Tải lên thành công! Download URL: $downloadUrl');
 

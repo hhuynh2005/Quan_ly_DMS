@@ -145,7 +145,12 @@ class SupabaseService {
         'is_public': isPublic,
       };
 
-      final response = await cli.from('documents').insert(docData).select().single();
+      final response = await cli
+          .from('documents')
+          .insert(docData)
+          .select()
+          .single()
+          .timeout(const Duration(seconds: 4));
       debugPrint('[SupabaseService] Đã tạo tài liệu thành công: $title');
       return response;
     } catch (e) {
