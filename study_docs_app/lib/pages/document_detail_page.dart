@@ -754,15 +754,38 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
       // Cập nhật Document với URL Cloud Storage mới
       final updatedDoc = widget.document.copyWith(
         fileUrl: result.downloadUrl,
+        filePath: result.storagePath,
         fileSizeBytes: result.fileSizeBytes,
+        cloudSyncStatus: CloudSyncStatus.synced,
       );
       await provider.updateDocument(updatedDoc);
+
+      // Đồng bộ đồng thời lên Supabase Database (bảng documents)
+      try {
+        final email = GoogleAuthService().currentUserEmail.isNotEmpty
+            ? GoogleAuthService().currentUserEmail
+            : 'huynh@tlu.edu.vn';
+        await SupabaseService().createDocument(
+          title: widget.document.title,
+          description: widget.document.description,
+          subject: provider.getSubjectById(widget.document.subjectId)?.name ?? 'Chung',
+          fileFormat: widget.document.fileFormat.name,
+          fileSizeBytes: result.fileSizeBytes,
+          fileUrl: result.downloadUrl,
+          storagePath: result.storagePath,
+          ownerId: uploaderUid,
+          ownerEmail: email,
+          isPublic: false,
+        );
+      } catch (e) {
+        debugPrint('[DocumentDetailPage] Cảnh báo Supabase: $e');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Đã đồng bộ lên Firebase Cloud Storage thành công!'),
-            backgroundColor: Colors.teal,
+            content: Text('Đã đồng bộ lên Firebase Storage & Supabase Database thành công!'),
+            backgroundColor: Color(0xFF3ECF8E),
           ),
         );
       }

@@ -132,6 +132,17 @@ class SupabaseService {
     if (cli == null) return null;
 
     try {
+      // 1. Đảm bảo user tồn tại trong bảng users để thỏa mãn ràng buộc khóa ngoại (Foreign Key)
+      try {
+        await cli.from('users').upsert({
+          'id': ownerId,
+          'email': ownerEmail.toLowerCase().trim(),
+          'display_name': ownerEmail.split('@').first,
+        }).timeout(const Duration(seconds: 3));
+      } catch (userErr) {
+        debugPrint('[SupabaseService] Upsert user info warning: $userErr');
+      }
+
       final docData = {
         'title': title,
         'description': description ?? '',

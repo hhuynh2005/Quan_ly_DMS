@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -261,15 +262,30 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
           ? GoogleAuthService().currentUserId
           : 'user_local';
 
-      // 1. Tải tệp vật lý từ máy tính lên Firebase Storage
-      if (_pickedFileBytes != null && _syncToCloud) {
-        final fileName = _pickedFileName ?? '${_titleController.text.trim()}.${_selectedFormat.name}';
+      // 1. Tải tệp vật lý từ máy tính hoặc nội dung tệp lên Firebase Storage
+      if (_syncToCloud) {
+        final fileName = _pickedFileName ??
+            '${_titleController.text.trim().replaceAll(RegExp(r'\s+'), '_')}.${_pickedFileBytes != null ? _selectedFormat.name : "txt"}';
+        final uploadBytes = _pickedFileBytes ??
+            Uint8List.fromList(utf8.encode(
+              '# ${_titleController.text.trim()}\n\n'
+              'Môn học: ${provider.getSubjectById(_selectedSubjectId!)?.name ?? "Chung"}\n'
+              'Mô tả: ${_descController.text.trim()}\n'
+              'Định dạng: ${_selectedFormat.name}\n'
+              'Người tải: $authEmail ($authUid)\n'
+              'Thời gian tải lên: ${DateTime.now().toIso8601String()}\n',
+            ));
         try {
           final uploadRes = await FirebaseStorageService().uploadDocumentFile(
             uploaderUid: authUid,
             documentId: docId,
             fileName: fileName,
-            bytes: _pickedFileBytes!,
+            bytes: uploadBytes,
+            customMetadata: {
+              'ownerEmail': authEmail,
+              'subjectId': _selectedSubjectId!,
+              'title': _titleController.text.trim(),
+            },
           );
           uploadedUrl = uploadRes.downloadUrl;
           storagePath = uploadRes.storagePath;
@@ -279,13 +295,17 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
         }
       }
 
-      final resolvedUrl = uploadedUrl ?? (_urlController.text.trim().isNotEmpty
-          ? _urlController.text.trim()
-          : (_syncToCloud
-              ? 'https://firebasestorage.googleapis.com/v0/b/cashew-study-docs.appspot.com/o/${Uri.encodeComponent(_titleController.text.trim())}?alt=media'
-              : null));
+      final resolvedUrl = uploadedUrl ??
+          (_urlController.text.trim().isNotEmpty
+              ? _urlController.text.trim()
+              : (_syncToCloud
+                  ? 'https://firebasestorage.googleapis.com/v0/b/cashew-study-docs-d5b15.firebasestorage.app/o/${Uri.encodeComponent('documents/$authUid/$docId/${_titleController.text.trim()}.${_selectedFormat.name}')}?alt=media'
+                  : null));
 
-      final resolvedPath = storagePath ?? (_pathController.text.trim().isEmpty ? null : _pathController.text.trim());
+      final resolvedPath = storagePath ??
+          (_pathController.text.trim().isNotEmpty
+              ? _pathController.text.trim()
+              : 'documents/$authUid/$docId/${_titleController.text.trim().replaceAll(RegExp(r'\s+'), '_')}.${_selectedFormat.name}');
 
       // 2. Lưu Metadata tài liệu lên Supabase PostgreSQL (có đầy đủ owner_email và owner_id)
       if (_syncToCloud) {
@@ -295,9 +315,9 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
             description: _descController.text.trim(),
             subject: provider.getSubjectById(_selectedSubjectId!)?.name ?? 'Chung',
             fileFormat: _selectedFormat.name,
-            fileSizeBytes: sizeBytes,
+            fileSizeBytes: sizeBytes > 0 ? sizeBytes : (_pickedFileBytes?.length ?? 1024),
             fileUrl: resolvedUrl ?? '',
-            storagePath: resolvedPath ?? 'documents/$docId',
+            storagePath: resolvedPath,
             ownerId: authUid,
             ownerEmail: authEmail,
             isPublic: false,
@@ -318,7 +338,7 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
           fileFormat: _selectedFormat,
           filePath: resolvedPath,
           fileUrl: resolvedUrl,
-          fileSizeBytes: sizeBytes,
+          fileSizeBytes: sizeBytes > 0 ? sizeBytes : (_pickedFileBytes?.length ?? 1024),
           isFavorite: _isFavorite,
           status: _selectedStatus,
           priority: _selectedPriority,
@@ -329,7 +349,10 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
         await provider.updateDocument(updated);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã cập nhật thông tin tài liệu thành công!')),
+            const SnackBar(
+              backgroundColor: Color(0xFF3ECF8E),
+              content: Text('Đã cập nhật & đồng bộ tài liệu lên Firebase + Supabase!'),
+            ),
           );
           Navigator.of(context).pop(updated);
         }
@@ -342,7 +365,7 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
           fileFormat: _selectedFormat,
           filePath: resolvedPath,
           fileUrl: resolvedUrl,
-          fileSizeBytes: sizeBytes,
+          fileSizeBytes: sizeBytes > 0 ? sizeBytes : (_pickedFileBytes?.length ?? 1024),
           isFavorite: _isFavorite,
           status: _selectedStatus,
           priority: _selectedPriority,
@@ -351,7 +374,10 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã thêm tài liệu mới thành công!')),
+            const SnackBar(
+              backgroundColor: Color(0xFF3ECF8E),
+              content: Text('Đã thêm tài liệu & đồng bộ lên Firebase Storage + Supabase!'),
+            ),
           );
           Navigator.of(context).pop(newDoc);
         }

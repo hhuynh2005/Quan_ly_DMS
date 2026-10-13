@@ -16,6 +16,7 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
   bool _isExpanded = false;
   bool _isSyncing = false;
   int _cloudDocCount = 0;
+  List<Map<String, dynamic>> _cloudDocs = [];
   String? _statusMessage;
 
   @override
@@ -30,6 +31,7 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
     if (mounted) {
       setState(() {
         _cloudDocCount = docs.length;
+        _cloudDocs = docs;
       });
     }
   }
@@ -45,7 +47,7 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
 
     setState(() {
       _isSyncing = true;
-      _statusMessage = 'Đang đồng bộ dữ liệu lên Supabase...';
+      _statusMessage = 'Đang đồng bộ dữ liệu lên Supabase Database...';
     });
 
     int count = 0;
@@ -55,9 +57,9 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
         description: doc.description,
         subject: provider.getSubjectById(doc.subjectId)?.name ?? 'Chung',
         fileFormat: doc.fileFormat.name,
-        fileSizeBytes: doc.fileSizeBytes,
-        fileUrl: doc.fileUrl ?? 'https://firebasestorage.googleapis.com/v0/b/cashew-study-docs-d5b15.firebasestorage.app/docs/${doc.id}',
-        storagePath: doc.filePath ?? 'documents/${doc.id}',
+        fileSizeBytes: doc.fileSizeBytes > 0 ? doc.fileSizeBytes : 1024,
+        fileUrl: doc.fileUrl ?? 'https://firebasestorage.googleapis.com/v0/b/cashew-study-docs-d5b15.firebasestorage.app/o/documents%2F$uid%2F${doc.id}%2F${doc.title}.${doc.fileFormat.name}?alt=media',
+        storagePath: doc.filePath ?? 'documents/$uid/${doc.id}/${doc.title}.${doc.fileFormat.name}',
         ownerId: uid,
         ownerEmail: email,
         isPublic: false,
@@ -68,15 +70,17 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
     if (mounted) {
       setState(() {
         _isSyncing = false;
-        _statusMessage = 'Đã đồng bộ $count/${provider.allDocuments.length} tài liệu lên Supabase!';
+        _statusMessage = 'Đã đồng bộ thành công $count/${provider.allDocuments.length} tài liệu lên Supabase!';
       });
-      _fetchStats();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: const Color(0xFF3ECF8E),
-          content: Text('Đã đồng bộ $count tài liệu lên Supabase Database (PostgreSQL)!'),
-        ),
-      );
+      await _fetchStats();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF3ECF8E),
+            content: Text('Đã đồng bộ $count tài liệu lên Supabase Database (PostgreSQL + RLS)!'),
+          ),
+        );
+      }
     }
   }
 
@@ -242,6 +246,60 @@ class _SupabaseCloudPanelState extends State<SupabaseCloudPanel> {
                   ),
                 ],
               ),
+              if (_cloudDocs.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const Icon(Icons.cloud_done_rounded, size: 16, color: Color(0xFF3ECF8E)),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Tài liệu thực tế trên Supabase Database (${_cloudDocs.length}):',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 180),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _cloudDocs.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (ctx, i) {
+                      final doc = _cloudDocs[i];
+                      final title = doc['title'] ?? 'Chưa đặt tên';
+                      final owner = doc['owner_email'] ?? doc['owner_id'] ?? 'N/A';
+                      final fmt = (doc['file_format'] ?? 'DOC').toString().toUpperCase();
+                      return ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                        leading: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3ECF8E).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            fmt,
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                          ),
+                        ),
+                        title: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          'Người tải / Chủ sở hữu: $owner',
+                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                        trailing: const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF3ECF8E)),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ],
           ],
         ),

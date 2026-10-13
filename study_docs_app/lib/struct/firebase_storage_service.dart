@@ -196,11 +196,11 @@ class FirebaseStorageService {
       }
 
       final snapshot = await uploadTask.timeout(
-        const Duration(seconds: 4),
-        onTimeout: () => throw TimeoutException('Tải tệp lên Firebase Storage quá thời gian (hơn 4s).'),
+        const Duration(milliseconds: 1500),
+        onTimeout: () => throw TimeoutException('Tải tệp lên Firebase Storage quá thời gian (hơn 1.5s).'),
       );
       final downloadUrl = await snapshot.ref.getDownloadURL().timeout(
-        const Duration(seconds: 3),
+        const Duration(milliseconds: 1000),
         onTimeout: () => 'https://firebasestorage.googleapis.com/v0/b/$defaultBucket/o/${Uri.encodeComponent(storagePath)}?alt=media',
       );
 

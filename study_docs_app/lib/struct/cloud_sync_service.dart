@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../database/app_database.dart';
 import '../database/tables.dart';
 import 'document_model.dart';
+import 'google_auth_service.dart';
 import 'subject_model.dart';
 
 class CloudSyncResult {
@@ -95,6 +96,17 @@ class CloudSyncService {
     downloaded += subjectResult.downloaded;
     deleted += subjectResult.deleted;
 
+    final resolvedEmail = (user.email != null && user.email!.isNotEmpty)
+        ? user.email!
+        : (GoogleAuthService().currentUserEmail.isNotEmpty
+            ? GoogleAuthService().currentUserEmail
+            : 'user_${user.uid.substring(0, 6)}@e.tlu.edu.vn');
+    final resolvedName = (user.displayName != null && user.displayName!.isNotEmpty)
+        ? user.displayName!
+        : (GoogleAuthService().currentUserDisplayName.isNotEmpty
+            ? GoogleAuthService().currentUserDisplayName
+            : resolvedEmail.split('@').first);
+
     final documentResult = await _mergeRecords<Document>(
       collection: userRef.collection('documents'),
       localRecords: await _database.getAllDocuments(),
@@ -103,8 +115,10 @@ class CloudSyncService {
       dataOf: (document) {
         final data = document.toMap();
         data['uploaderUid'] = user.uid;
-        data['uploaderEmail'] = user.email ?? '';
-        data['uploaderName'] = user.displayName ?? (user.email?.split('@').first ?? '');
+        data['uploaderEmail'] = resolvedEmail;
+        data['uploaderName'] = resolvedName;
+        data['owner_id'] = user.uid;
+        data['owner_email'] = resolvedEmail;
         data['syncedAt'] = DateTime.now().toUtc().toIso8601String();
         return data;
       },
@@ -118,8 +132,9 @@ class CloudSyncService {
     uploaded += await _mergeDeleteLogs(userRef);
     await userRef.set({
       'uid': user.uid,
-      'email': user.email ?? '',
-      'displayName': user.displayName ?? (user.email?.split('@').first ?? ''),
+      'email': resolvedEmail,
+      'displayName': resolvedName,
+      'photoURL': user.photoURL ?? '',
       'lastSyncedAt': DateTime.now().toUtc().toIso8601String(),
       'schemaVersion': 1,
     }, SetOptions(merge: true));
