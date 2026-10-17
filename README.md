@@ -1,4 +1,149 @@
 
+# 🚀 BÀI TẬP THỰC HÀNH 2 (TH2): PHÁT TRIỂN HỆ THỐNG QUẢN LÝ TÀI LIỆU ĐA NỀN TẢNG (SMART DMS)
+
+> 📌 **Tên bài tập:** TH2: Phát triển Hệ thống Quản lý Tài liệu Đa nền tảng  
+> ⏳ **Quy định nộp:** Tối đa 1 lần nộp  
+> 🎯 **Mục tiêu đề bài:**  
+> Sinh viên thực hiện xây dựng một ứng dụng quản lý tài liệu chạy trên nhiều nền tảng sử dụng Flutter, kết hợp sức mạnh của Firebase và Supabase. Hệ thống yêu cầu triển khai các tính năng nâng cao như gắn thẻ (tagging), định vị tài liệu (location), cơ chế chia sẻ/mượn tài liệu giữa người dùng và thuật toán gợi ý tài liệu phù hợp. Mục tiêu là tạo ra một giải pháp lưu trữ thông minh, có khả năng tương tác cao và quản lý dữ liệu thời gian thực.  
+> 🔗 **Repository chính thức:** [https://github.com/hhuynh2005/Quan_ly_DMS](https://github.com/hhuynh2005/Quan_ly_DMS)  
+> 👥 **Đơn vị thực hiện:** **Nhóm 16** (Lớp 65KTPM — Khoa Công nghệ Thông tin — Trường Đại học Thủy Lợi)  
+> 🛠️ **Công nghệ cốt lõi:** Flutter (Responsive Web & Mobile) • Firebase (Auth, Cloud Messaging) • Supabase (PostgreSQL, Storage, Realtime, RLS) • SQLite (Local-First Offline Cache)
+
+---
+
+### 📋 I. Bảng Đối Soát 6 Mục Checklist Yêu Cầu Của Đề Bài TH2
+
+| STT | Mục Checklist Yêu Cầu Đề Bài | Mục Tiêu & Giải Pháp Triển Khai Kỹ Thuật | Thành Viên Phụ Trách | Nhánh Git Phụ Trách | Trạng Thái |
+|:---:|:---|:---|:---:|:---:|:---:|
+| **1** | **Thiết kế kiến trúc hệ thống và mô hình dữ liệu** | • Kết hợp **Firebase** (Authentication / Cloud Messaging) và **Supabase** (PostgreSQL Database, Storage, Realtime).<br>• Thiết kế Schema cơ sở dữ liệu mở rộng: Bảng `documents`, `tags`, `document_locations`, `borrow_requests`, `user_preferences`.<br>• Thiết lập phân quyền Row Level Security (RLS) bảo mật đa tầng. | **Nguyễn Văn Huỳnh** | `huynh-th2-architecture-packaging` | 🔄 Đang triển khai |
+| **2** | **Xây dựng giao diện người dùng đa nền tảng (Responsive)** | • Xây dựng UI linh hoạt đáp ứng (Responsive Design) trên cả Mobile (dọc) và Web/Desktop (ngang, Dashboard Grid, Adaptive Navigation).<br>• Đảm bảo tính nhất quán trải nghiệm người dùng theo ngôn ngữ Material 3. | **NGUYỄN TRUNG KIÊN** | `kien-th2-responsive-location` | 🔄 Đang triển khai |
+| **3** | **Phân loại bằng Tag & Định vị vị trí vật lý tài liệu (Location)** | • **Tagging:** Gắn thẻ thông minh, hỗ trợ tìm kiếm đa nhãn (Multi-tag filtering).<br>• **Location:** Tích hợp bản đồ số / định vị tọa độ vị trí vật lý của tài liệu (Tòa nhà, Phòng học, Kệ sách thư viện TLU). | **Trần Anh Tuấn** (Tagging)<br>**NGUYỄN TRUNG KIÊN** (Location) | `trantuan-th2-tagging-recommendation`<br>`kien-th2-responsive-location` | 🔄 Đang triển khai |
+| **4** | **Luồng nghiệp vụ yêu cầu mượn & chia sẻ quyền truy cập** | • Xây dựng quy trình mượn/trả tài liệu giữa người dùng: Gửi yêu cầu mượn -> Chủ sở hữu phê duyệt -> Đang mượn -> Đã trả.<br>• Tích hợp Firebase Cloud Messaging (FCM) gửi thông báo đẩy thời gian thực khi có yêu cầu mới. | **Lê Anh Tuấn** | `letuan-th2-borrow-sharing` | 🔄 Đang triển khai |
+| **5** | **Thuật toán Recommendation gợi ý tài liệu thông minh** | • Phát triển thuật toán Recommendation (Content-based Filtering) dựa trên mức độ tương đồng giữa các Tag tài liệu và sở thích/lịch sử đọc của người dùng.<br>• Widget "Gợi ý tài liệu cho bạn" hiển thị trực quan trên Dashboard. | **Trần Anh Tuấn** | `trantuan-th2-tagging-recommendation` | 🔄 Đang triển khai |
+| **6** | **Kiểm thử toàn diện các tính năng & Đóng gói sản phẩm** | • Bộ kiểm thử tự động toàn diện: Unit Test (Thuật toán gợi ý, Luồng mượn/trả) & Widget Test đa nền tảng.<br>• Đóng gói bản phát hành Web Production & Android APK Release sẵn sàng triển khai. | **Nguyễn Văn Huỳnh** | `huynh-th2-architecture-packaging` | 🔄 Đang triển khai |
+
+---
+
+### 👥 II. Bảng Phân Chia Công Việc Chi Tiết Cho 4 Thành Viên Nhóm 16 (TH2)
+
+Nhóm 16 phân bổ nhiệm vụ cụ thể dựa trên thế mạnh chuyên môn của từng thành viên, đảm bảo bao phủ 100% 6 mục checklist:
+
+| STT | Họ và Tên | Mã Sinh Viên | Vai Trò | Nhiệm Vụ Kỹ Thuật Chi Tiết TH2 | Sản Phẩm Bàn Giao | Tên Nhánh Git Mới Phụ Trách | Trạng Thái |
+|:---:|:---|:---:|:---:|:---|:---|:---:|:---:|
+| **1** | **Nguyễn Văn Huỳnh** | **2351170599** | **Nhóm trưởng** | • Chủ trì thiết kế kiến trúc hệ thống tích hợp Firebase + Supabase + Local-First SQLite.<br>• Thiết kế và tối ưu Schema CSDL quan hệ: `documents`, `tags`, `document_locations`, `borrow_requests`.<br>• Thiết lập quy chuẩn Git Flow, phân phối nhánh, điều phối và review Pull Request (PR) của các thành viên.<br>• Viết kịch bản kiểm thử tích hợp (Integration Tests) và phụ trách đóng gói sản phẩm (Build Web & APK Release). | • Sơ đồ kiến trúc Mermaid<br>• File DDL `supabase_th2_schema.sql`<br>• Gói Release Web/APK & Quản trị Git | `huynh-th2-architecture-packaging` | 🔄 Đang triển khai |
+| **2** | **Lê Anh Tuấn** | **2151060296** | **Thành viên** | • Xây dựng dịch vụ Quản lý Mượn/Trả tài liệu (`BorrowService`): Tạo yêu cầu, phê duyệt, từ chối, gia hạn, trả tài liệu.<br>• Thiết kế giao diện Quản lý Yêu cầu mượn (`BorrowManagementPage`) hiển thị danh sách yêu cầu gửi đi và yêu cầu nhận được.<br>• Tích hợp Firebase Cloud Messaging (FCM) thông báo tức thời trạng thái mượn tài liệu.<br>• Viết bộ Test Case kiểm thử nghiệp vụ mượn/trả giữa các tài khoản. | • `BorrowService.dart`<br>• `BorrowManagementPage.dart`<br>• `FirebaseMessagingService.dart`<br>• Bộ Test Case luồng mượn | `letuan-th2-borrow-sharing` | 🔄 Đang triển khai |
+| **3** | **NGUYỄN TRUNG KIÊN** | **2251172394** | **Thành viên** | • Xây dựng khung giao diện Responsive đa nền tảng thích ứng linh hoạt giữa Mobile màn hình dọc và Web/Desktop màn hình rộng (Adaptive Layout, Breakpoints).<br>• Tích hợp tính năng bản đồ và định vị vị trí vật lý của tài liệu: Tòa nhà, Tầng, Phòng học, Kệ sách thư viện Đại học Thủy Lợi.<br>• Xây dựng thành phần chọn vị trí (`DocumentLocationPicker`) và xem vị trí trên bản đồ (`LocationMapView`).<br>• Kiểm thử tính thích ứng UI/UX trên nhiều độ phân giải màn hình. | • `ResponsiveLayoutScaffold.dart`<br>• `DocumentLocationPicker.dart`<br>• `LocationMapView.dart`<br>• Minh chứng Responsive UI | `kien-th2-responsive-location` | 🔄 Đang triển khai |
+| **4** | **Trần Anh Tuấn** | **2351170629** | **Thành viên** | • Phát triển hệ thống Gắn thẻ thông minh (`SmartTaggingWidget`): Đề xuất thẻ tự động, bộ lọc đa thẻ linh hoạt.<br>• Nghiên cứu và hiện thực hóa Thuật toán Gợi ý tài liệu (Recommendation Engine) sử dụng giải thuật Content-based Filtering (Cosine / Jaccard Similarity giữa Tag tài liệu và sở thích người dùng).<br>• Xây dựng Widget hiển thị gợi ý tài liệu "Dành riêng cho bạn" trên màn hình chính Dashboard.<br>• Viết Unit Test kiểm thử thuật toán gợi ý tài liệu. | • `RecommendationEngine.dart`<br>• `SmartTaggingWidget.dart`<br>• `RecommendedDocsSection.dart`<br>• Unit Test Thuật toán gợi ý | `trantuan-th2-tagging-recommendation` | 🔄 Đang triển khai |
+
+---
+
+### 🏛️ III. Sơ Đồ Kiến Trúc Hệ Thống & Luồng Dữ Liệu TH2
+
+```mermaid
+flowchart TD
+    subgraph Client["Flutter Cross-Platform App (Responsive Mobile & Web)"]
+        UI["UI Layer\n(Dashboard, Detail, Borrow, Map, Recommendation)"]
+        Resp["Responsive Engine\n(Adaptive Breakpoints: Mobile / Tablet / Desktop)"]
+        StateProv["State Management Provider\n(DocumentStateProvider, BorrowProvider)"]
+        LocalCache["SQLite Cache (Local-First)\n(Offline Support & Instant Read)"]
+    end
+
+    subgraph FirebaseServices["Firebase Cloud Services"]
+        FAuth["Firebase Authentication\n(Google Sign-In OAuth 2.0)"]
+        FCM["Firebase Cloud Messaging (FCM)\n(Thông báo đẩy yêu cầu mượn/trả)"]
+    end
+
+    subgraph SupabaseServices["Supabase Cloud Ecosystem"]
+        SPostgres["PostgreSQL Database\n(documents, tags, locations, borrow_requests)"]
+        SStorage["Supabase Storage Bucket\n(Lưu trữ tệp tài liệu PDF/Word)"]
+        SRealtime["Supabase Realtime\n(Live stream trạng thái mượn & tài liệu)"]
+        SRLS["Row Level Security (RLS)\n(Phân quyền mượn/chủ sở hữu/người lạ)"]
+    end
+
+    subgraph SmartEngine["Smart Recommendation Engine"]
+        Algo["Content-based Recommendation\n(Jaccard / Tag Similarity Matching)"]
+        UserPref["User Preferences & Study History"]
+    end
+
+    UI --> Resp
+    Resp --> StateProv
+    StateProv <--> LocalCache
+    UI -->|1. Đăng nhập Google| FAuth
+    StateProv -->|2. Gửi yêu cầu mượn| FCM
+    FCM -->|3. Bắn Notification| UI
+    StateProv <-->|4. CRUD & Query Metadata| SPostgres
+    StateProv <-->|5. Tải/Đọc tệp tài liệu| SStorage
+    SPostgres <--> SRLS
+    SPostgres -->|6. Realtime Events| SRealtime
+    SRealtime --> StateProv
+    StateProv <--> Algo
+    Algo <--> UserPref
+```
+
+---
+
+### 🌿 IV. Quy Định Git Flow & Danh Sách Nhánh Mới Của Các Thành Viên Cho TH2
+
+> ⚠️ **QUY TẮC BẮT BUỘC DÀNH CHO TẤT CẢ THÀNH VIÊN:**  
+> - **Nhánh gốc khởi tạo:** Toàn bộ nhánh TH2 phải được checkout từ nhánh **`main`** mới nhất của repository `https://github.com/hhuynh2005/Quan_ly_DMS`.  
+> - **Cú pháp đặt tên nhánh:** `<tiền_tố>-th2-<tên_chức_năng>`.  
+> - **Tuyệt đối không** commit hoặc push code trực tiếp lên `main`. Mỗi thành viên làm việc độc lập trên nhánh của mình, kiểm thử kỹ lưỡng ở local rồi push lên GitHub và tạo **Pull Request (PR)** để Nhóm trưởng review, merge.
+
+#### Bảng Tổng Hợp Nhánh Mới Sẽ Up Lên Của Mỗi Thành Viên:
+
+| Thành Viên | Tiền Tố | Tên Nhánh Git Mới TH2 | Mục Đích & Chức Năng Phụ Trách | Lệnh Tạo & Checkout Nhánh |
+|---|:---:|:---|:---|:---|
+| **Nguyễn Văn Huỳnh** | `huynh-` | **`huynh-th2-architecture-packaging`** | Kiến trúc hệ thống, Schema CSDL, Kiểm thử tích hợp & Đóng gói sản phẩm | `git checkout -b huynh-th2-architecture-packaging main` |
+| **Lê Anh Tuấn** | `letuan-` | **`letuan-th2-borrow-sharing`** | Luồng nghiệp vụ mượn/trả tài liệu, Firebase Messaging thông báo đẩy | `git checkout -b letuan-th2-borrow-sharing main` |
+| **NGUYỄN TRUNG KIÊN** | `kien-` | **`kien-th2-responsive-location`** | Giao diện Responsive Web/Mobile, Bản đồ định vị vị trí vật lý tài liệu | `git checkout -b kien-th2-responsive-location main` |
+| **Trần Anh Tuấn** | `trantuan-` | **`trantuan-th2-tagging-recommendation`** | Phân loại Tag nâng cao, Thuật toán Recommendation gợi ý tài liệu | `git checkout -b trantuan-th2-tagging-recommendation main` |
+
+---
+
+### 🗄️ V. Thiết Kế Mô Hình CSDL Mở Rộng Cho TH2 (Supabase PostgreSQL Schema Preview)
+
+Các bảng dữ liệu mới và nâng cấp phục vụ các tính năng của bài TH2:
+
+```sql
+-- 1. Bảng Vị trí vật lý của tài liệu (Physical Location)
+CREATE TABLE IF NOT EXISTS document_locations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+    building TEXT NOT NULL,         -- Tòa nhà (ví dụ: Nhà A4, Thư viện TLU)
+    room TEXT NOT NULL,             -- Phòng học / Khu vực
+    shelf TEXT,                     -- Kệ sách / Tủ tài liệu
+    latitude DOUBLE PRECISION,      -- Tọa độ vĩ độ GPS
+    longitude DOUBLE PRECISION,     -- Tọa độ kinh độ GPS
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Bảng Yêu cầu mượn tài liệu (Borrow Requests)
+CREATE TABLE IF NOT EXISTS borrow_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+    borrower_id TEXT NOT NULL REFERENCES users(id),
+    borrower_email TEXT NOT NULL,
+    owner_id TEXT NOT NULL REFERENCES users(id),
+    owner_email TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending', -- pending, approved, borrowed, returned, rejected
+    request_date TIMESTAMPTZ DEFAULT NOW(),
+    approved_date TIMESTAMPTZ,
+    due_date TIMESTAMPTZ,
+    returned_date TIMESTAMPTZ,
+    note TEXT
+);
+
+-- 3. Bảng Sở thích & Lịch sử người dùng phục vụ thuật toán Recommendation
+CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id TEXT PRIMARY KEY REFERENCES users(id),
+    favorite_tags JSONB DEFAULT '[]',
+    recent_subjects JSONB DEFAULT '[]',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+---
+
 # ☁️ BÀI TẬP: PHÂN TÍCH VÀ LẬP PHƯƠNG ÁN TÍCH HỢP CLOUD CHO HỆ THỐNG QUẢN LÝ TÀI LIỆU (DMS)
 
 > 📌 **Nhiệm vụ đề bài:**  
