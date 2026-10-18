@@ -676,7 +676,9 @@ class DocumentDetailPage extends StatelessWidget {
       provider.allDocuments,
       limit: 5,
     );
-    if (related.isEmpty) return const SizedBox.shrink();
+    if (related.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     final theme = Theme.of(context);
 

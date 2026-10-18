@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'document_model.dart';
 import 'tag_service.dart';
 
@@ -6,6 +8,16 @@ class ScoredDocument {
   final Document document;
   final double score;
   const ScoredDocument(this.document, this.score);
+}
+
+/// Độ đo tương đồng dùng cho tập tag của 2 tài liệu.
+enum TagSimilarityMetric {
+  /// Jaccard: |A∩B| / |A∪B| — độ đo chuẩn cho tập hợp tag rời rạc.
+  jaccard,
+
+  /// Cosine: |A∩B| / (√|A| · √|B|) — xem mỗi tập tag là một vector nhị phân
+  /// trên từ vựng tag, đo cosin góc giữa 2 vector.
+  cosine,
 }
 
 /// Thuật toán gợi ý tài liệu theo nội dung (content-based filtering).
@@ -32,6 +44,19 @@ class RecommendationService {
     return union == 0 ? 0.0 : intersection / union;
   }
 
+  /// Độ tương đồng Cosine giữa 2 tập tag.
+  ///
+  /// Mỗi tập được xem là một vector nhị phân trên từ vựng tag
+  /// (1 = tag có mặt, 0 = không). Vì vector nhị phân nên:
+  /// cosine(A, B) = |A∩B| / (√|A| · √|B|).
+  /// = 1.0 khi 2 tập giống hệt, = 0.0 khi không có tag chung.
+  static double cosineSimilarity(Set<String> a, Set<String> b) {
+    if (a.isEmpty || b.isEmpty) return 0.0;
+    final intersection = a.intersection(b).length;
+    final denominator = sqrt(a.length) * sqrt(b.length);
+    return denominator == 0 ? 0.0 : intersection / denominator;
+  }
+
   /// Tách tiêu đề thành tập từ khoá (bỏ từ ngắn <= 2 ký tự).
   static Set<String> _titleTokens(Document doc) {
     return doc.title
@@ -42,13 +67,22 @@ class RecommendationService {
   }
 
   /// Điểm tương đồng 0..1 giữa 2 tài liệu.
-  static double similarity(Document a, Document b) {
+  ///
+  /// [tagMetric] chọn độ đo cho thành phần tag: [TagSimilarityMetric.jaccard]
+  /// (mặc định) hoặc [TagSimilarityMetric.cosine].
+  static double similarity(
+    Document a,
+    Document b, {
+    TagSimilarityMetric tagMetric = TagSimilarityMetric.jaccard,
+  }) {
     if (a.id == b.id) return 1.0;
 
-    final tagScore = _jaccard(
-      TagService.normalizeTags(a.tags).toSet(),
-      TagService.normalizeTags(b.tags).toSet(),
-    );
+    final tagsA = TagService.normalizeTags(a.tags).toSet();
+    final tagsB = TagService.normalizeTags(b.tags).toSet();
+    final tagScore = switch (tagMetric) {
+      TagSimilarityMetric.jaccard => _jaccard(tagsA, tagsB),
+      TagSimilarityMetric.cosine => cosineSimilarity(tagsA, tagsB),
+    };
     final subjectScore = a.subjectId.isNotEmpty && a.subjectId == b.subjectId
         ? 1.0
         : 0.0;

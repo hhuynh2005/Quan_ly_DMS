@@ -12,6 +12,7 @@ import '../struct/document_state_provider.dart';
 import '../struct/supabase_storage_service.dart';
 import '../struct/supabase_service.dart';
 import '../struct/tag_service.dart';
+import '../widgets/smart_tagging_widget.dart';
 import '../theme.dart';
 import '../widgets/cloud_transfer_progress.dart';
 
@@ -39,7 +40,6 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
   late TextEditingController _descController;
   late TextEditingController _urlController;
   late TextEditingController _pathController;
-  late TextEditingController _tagsController;
   late TextEditingController _fileSizeController;
 
   String? _selectedSubjectId;
@@ -55,12 +55,9 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
   Uint8List? _pickedFileBytes;
   String? _pickedFileName;
 
-  // --- Tag nâng cao (Trần Anh Tuấn) ---
-  /// Gợi ý autocomplete khi người dùng đang gõ tag.
-  List<String> _tagSuggestions = [];
-
-  /// Ứng viên tag do máy tự trích xuất từ tiêu đề/mô tả.
-  List<String> _autoTagCandidates = [];
+  // --- Tag nâng cao (Trần Anh Tuấn, SmartTaggingWidget) ---
+  /// Danh sách tag hiện tại, đồng bộ 2 chiều với SmartTaggingWidget.
+  List<String> _tags = [];
 
   @override
   void initState() {
@@ -71,7 +68,7 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
     _descController = TextEditingController(text: doc?.description ?? '');
     _urlController = TextEditingController(text: doc?.fileUrl ?? '');
     _pathController = TextEditingController(text: doc?.filePath ?? '');
-    _tagsController = TextEditingController(text: doc?.tags.join(', ') ?? '');
+    _tags = TagService.normalizeTags(doc?.tags ?? []);
     _fileSizeController = TextEditingController(
       text: doc != null && doc.fileSizeBytes > 0
           ? (doc.fileSizeBytes / (1024 * 1024)).toStringAsFixed(2)
@@ -88,9 +85,6 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
       _isFavorite = doc.isFavorite;
       _isPublic = doc.isPublic;
     }
-
-    // Lắng nghe ô nhập tag để refresh gợi ý autocomplete theo từng ký tự.
-    _tagsController.addListener(_onTagsChanged);
   }
 
   @override
@@ -110,81 +104,8 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
     _descController.dispose();
     _urlController.dispose();
     _pathController.dispose();
-    _tagsController.dispose();
     _fileSizeController.dispose();
     super.dispose();
-  }
-
-  /// Refresh gợi ý autocomplete mỗi khi nội dung ô tag thay đổi.
-  /// Chỉ gợi ý theo "từ đang gõ" (đoạn sau dấu phẩy cuối cùng),
-  /// và loại bỏ tag đã có trong ô nhập.
-  void _onTagsChanged() {
-    if (!mounted) return;
-    final docs = context.read<DocumentStateProvider>().allDocuments;
-    final currentWord = _tagsController.text.split(',').last;
-    final existing = TagService.parseTagsInput(_tagsController.text).toSet();
-    final suggestions = TagService.suggestTags(
-      docs,
-      currentWord,
-    ).where((s) => !existing.contains(s)).toList();
-    if (!_stringListsEqual(_tagSuggestions, suggestions)) {
-      setState(() => _tagSuggestions = suggestions);
-    }
-  }
-
-  bool _stringListsEqual(List<String> a, List<String> b) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
-
-  /// Áp dụng 1 gợi ý: thêm vào cuối ô nhập, giữ định dạng "a, b, ".
-  void _applyTagSuggestion(String suggestion) {
-    final existing = TagService.parseTagsInput(_tagsController.text);
-    if (!existing.contains(suggestion)) existing.add(suggestion);
-    _tagsController.text = existing.isEmpty ? '' : '${existing.join(', ')}, ';
-    _tagsController.selection = TextSelection.fromPosition(
-      TextPosition(offset: _tagsController.text.length),
-    );
-  }
-
-  /// Tự động trích xuất ứng viên tag từ tiêu đề + mô tả hiện tại.
-  /// Người dùng bấm vào từng chip để thêm (không tự gắn ẩu).
-  void _generateAutoTags() {
-    final existing = TagService.parseTagsInput(_tagsController.text).toSet();
-    final tempDoc = Document(
-      id: 'temp-autotag',
-      title: _titleController.text,
-      description: _descController.text,
-      subjectId: _selectedSubjectId ?? '',
-      documentType: _selectedType,
-      tags: existing.toList(),
-    );
-    final candidates = TagService.extractCandidateTags(tempDoc)
-        .where((c) => !existing.contains(c))
-        .toList();
-    setState(() => _autoTagCandidates = candidates);
-    if (candidates.isEmpty && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Không trích xuất được tag mới từ tiêu đề/mô tả. Hãy nhập thêm mô tả.',
-          ),
-        ),
-      );
-    }
-  }
-
-  /// Thêm 1 ứng viên tag vào ô nhập và gỡ nó khỏi danh sách ứng viên.
-  void _addAutoTag(String tag) {
-    _applyTagSuggestion(tag);
-    setState(
-      () => _autoTagCandidates = _autoTagCandidates
-          .where((t) => t != tag)
-          .toList(),
-    );
   }
 
   /// Chọn tệp tin thực tế từ máy tính / điện thoại của người dùng
@@ -293,8 +214,8 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
 
     try {
       final provider = context.read<DocumentStateProvider>();
-      // Tag nâng cao: chuẩn hoá (viết thường, bỏ trùng, gộp khoảng trắng).
-      final tags = TagService.parseTagsInput(_tagsController.text);
+      // Tag nâng cao: SmartTaggingWidget đã chuẩn hoá sẵn trong _tags.
+      final tags = _tags;
 
       final sizeMb = double.tryParse(_fileSizeController.text.trim()) ?? 0.0;
       var sizeBytes = (sizeMb * 1024 * 1024).round();
@@ -864,75 +785,14 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
             ),
             const SizedBox(height: 16),
 
-            // 9. Tags phân loại (nâng cao: autocomplete + auto-tag)
-            TextFormField(
-              controller: _tagsController,
-              decoration: const InputDecoration(
-                labelText: 'Thẻ tag (phân cách bằng dấu phẩy)',
-                hintText: 'TH1, Flutter, Slide, Chuẩn 3NF',
-                prefixIcon: Icon(Icons.tag_rounded),
-              ),
+            // 9. Tags phân loại (SmartTaggingWidget - Trần Anh Tuấn)
+            SmartTaggingWidget.edit(
+              initialTags: _tags,
+              allDocuments: provider.allDocuments,
+              titleController: _titleController,
+              descriptionController: _descController,
+              onTagsChanged: (tags) => setState(() => _tags = tags),
             ),
-            // Gợi ý autocomplete theo từng ký tự đang gõ
-            if (_tagSuggestions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  const Chip(
-                    avatar: Icon(Icons.auto_awesome_rounded, size: 16),
-                    label: Text('Gợi ý:', style: TextStyle(fontSize: 12)),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  ..._tagSuggestions.map(
-                    (s) => ActionChip(
-                      label: Text(s),
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => _applyTagSuggestion(s),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 8),
-            // Nút tự động trích xuất tag từ tiêu đề/mô tả
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.auto_fix_high_rounded, size: 18),
-                label: const Text(
-                  'Tự động gợi ý tag từ tiêu đề/mô tả',
-                  style: TextStyle(fontSize: 13),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.primaryColor,
-                  side: const BorderSide(color: AppTheme.primaryColor),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: _generateAutoTags,
-              ),
-            ),
-            if (_autoTagCandidates.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: _autoTagCandidates
-                    .map(
-                      (c) => ActionChip(
-                        avatar: const Icon(Icons.add_rounded, size: 16),
-                        label: Text(c),
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => _addAutoTag(c),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ],
             const SizedBox(height: 18),
 
             // 10. Phân quyền chia sẻ công khai (RLS is_public)
