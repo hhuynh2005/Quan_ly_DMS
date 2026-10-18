@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../struct/document_enums.dart';
 import '../struct/document_state_provider.dart';
+import '../struct/recommendation_service.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/cloud_sync_panel.dart';
 import '../widgets/document_card.dart';
@@ -58,6 +59,14 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    // Gợi ý cho bạn (Thuật toán Recommendation - Trần Anh Tuấn):
+    // dựa trên tài liệu đã đánh dấu yêu thích; chưa có favorite thì
+    // fallback về tài liệu mới sửa gần nhất.
+    final recommended = RecommendationService.getRecommendedForUser(
+      provider.allDocuments,
+      limit: 8,
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -103,7 +112,10 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
               final user = snapshot.data;
               if (user != null) {
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 8,
+                  ),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(20),
                     onTap: () {
@@ -118,11 +130,15 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                         children: [
                           CircleAvatar(
                             radius: 17,
-                            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.15),
-                            backgroundImage: user.photoURL != null && user.photoURL!.isNotEmpty
+                            backgroundColor: theme.colorScheme.primary
+                                .withValues(alpha: 0.15),
+                            backgroundImage:
+                                user.photoURL != null &&
+                                    user.photoURL!.isNotEmpty
                                 ? NetworkImage(user.photoURL!)
                                 : null,
-                            child: user.photoURL == null || user.photoURL!.isEmpty
+                            child:
+                                user.photoURL == null || user.photoURL!.isEmpty
                                 ? Text(
                                     user.displayName?.isNotEmpty == true
                                         ? user.displayName![0].toUpperCase()
@@ -153,9 +169,9 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                 icon: const Icon(Icons.account_circle_rounded),
                 tooltip: 'Xác thực Google Cloud (Nhóm 16)',
                 onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const LoginPage()),
-                  );
+                  Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute(builder: (_) => const LoginPage()));
                 },
               );
             },
@@ -253,7 +269,9 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                         setState(() => _isOfflineMode = val);
                       },
                       pendingSyncCount: provider.allDocuments
-                          .where((d) => d.cloudSyncStatus == CloudSyncStatus.pending)
+                          .where(
+                            (d) => d.cloudSyncStatus == CloudSyncStatus.pending,
+                          )
                           .length,
                     ),
                   ),
@@ -432,6 +450,190 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                       ),
                     ),
                   ),
+
+                  // 2.5 Gợi ý cho bạn (Thuật toán Recommendation - Trần Anh Tuấn)
+                  // Cuộn ngang, bấm vào thẻ để mở chi tiết tài liệu.
+                  if (recommended.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 20, 0, 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(right: 16),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.auto_awesome_rounded,
+                                    color: theme.colorScheme.primary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Gợi ý cho bạn',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  const Tooltip(
+                                    message: 'Dựa trên tài liệu bạn đã yêu thích: cùng tag, cùng môn học, cùng loại tài liệu',
+                                    child: Icon(
+                                      Icons.info_outline_rounded,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              height: 148,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.only(right: 16),
+                                itemCount: recommended.length,
+                                itemBuilder: (ctx, index) {
+                                  final scored = recommended[index];
+                                  final doc = scored.document;
+                                  final subject = provider.getSubjectById(
+                                    doc.subjectId,
+                                  );
+                                  final matchLabel = scored.score > 0
+                                      ? '${(scored.score * 100).round()}% phù hợp'
+                                      : 'Mới cập nhật';
+                                  return Container(
+                                    width: 210,
+                                    margin: const EdgeInsets.only(right: 10),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => DocumentDetailPage(
+                                              documentId: doc.id,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: isDark
+                                              ? const Color(0xFF1E1E1E)
+                                              : Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          border: Border.all(
+                                            color: isDark
+                                                ? Colors.white12
+                                                : Colors.grey.shade200,
+                                          ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Container(
+                                                  width: 36,
+                                                  height: 36,
+                                                  decoration: BoxDecoration(
+                                                    color: doc.fileFormat.color
+                                                        .withValues(
+                                                          alpha: 0.12,
+                                                        ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                  ),
+                                                  child: Icon(
+                                                    doc.fileFormat.icon,
+                                                    color: doc.fileFormat.color,
+                                                    size: 20,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 3,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: theme
+                                                          .colorScheme
+                                                          .primary
+                                                          .withValues(
+                                                            alpha: 0.1,
+                                                          ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      matchLabel,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: theme
+                                                            .colorScheme
+                                                            .primary,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              doc.title,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                            const Spacer(),
+                                            Text(
+                                              subject?.name ?? 'Chưa phân môn',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: theme
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.color
+                                                    ?.withValues(alpha: 0.7),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
 
                   // 3. Danh sách Môn học (Cuộn ngang)
                   SliverToBoxAdapter(
