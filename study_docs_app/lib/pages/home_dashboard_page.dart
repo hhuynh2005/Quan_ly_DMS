@@ -14,6 +14,7 @@ import '../widgets/stat_summary_card.dart';
 import '../widgets/user_profile_header.dart';
 import 'about_app_page.dart';
 import 'add_edit_document_page.dart';
+import 'borrow_management_page.dart';
 import 'document_detail_page.dart';
 import 'document_list_page.dart';
 import 'login_page.dart';
@@ -161,6 +162,15 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
             },
           ),
           IconButton(
+            icon: const Icon(Icons.handshake_rounded),
+            tooltip: 'Quản lý Mượn/Trả tài liệu (TH2 - Lê Anh Tuấn)',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const BorrowManagementPage()),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.search_rounded),
             tooltip: 'Tìm kiếm tài liệu',
             onPressed: () {
@@ -172,7 +182,11 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded),
             onSelected: (value) async {
-              if (value == 'subjects') {
+              if (value == 'borrow') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const BorrowManagementPage()),
+                );
+              } else if (value == 'subjects') {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const SubjectsManagePage()),
                 );
@@ -203,6 +217,16 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
               }
             },
             itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'borrow',
+                child: Row(
+                  children: [
+                    Icon(Icons.handshake_rounded, size: 20, color: theme.colorScheme.primary),
+                    const SizedBox(width: 10),
+                    const Text('Quản lý Mượn / Trả (TH2)'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'subjects',
                 child: Row(

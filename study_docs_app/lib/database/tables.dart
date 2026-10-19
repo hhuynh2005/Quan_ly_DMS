@@ -5,6 +5,7 @@ class AppTables {
   static const String tableSubjects = 'subjects';
   static const String tableDeleteLogs = 'delete_logs';
   static const String tableAppSettings = 'app_settings';
+  static const String tableBorrowRequests = 'borrow_requests';
 
   // Câu lệnh tạo bảng Môn học (Subjects)
   static const String createTableSubjects = '''
@@ -62,11 +63,36 @@ class AppTables {
     );
   ''';
 
+  // Câu lệnh tạo bảng Yêu cầu mượn tài liệu (Borrow Requests - TH2 Mục 4)
+  static const String createTableBorrowRequests = '''
+    CREATE TABLE IF NOT EXISTS $tableBorrowRequests (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL,
+      document_title TEXT NOT NULL,
+      borrower_id TEXT NOT NULL,
+      borrower_email TEXT NOT NULL,
+      borrower_name TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      owner_email TEXT NOT NULL,
+      owner_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      request_date TEXT NOT NULL,
+      approved_date TEXT,
+      due_date TEXT,
+      returned_date TEXT,
+      note TEXT,
+      rejection_reason TEXT
+    );
+  ''';
+
   // Các chỉ mục (Indexes) để tăng tốc độ truy vấn
   static const List<String> createIndexes = [
     'CREATE INDEX IF NOT EXISTS idx_docs_subject ON $tableDocuments (subject_id);',
     'CREATE INDEX IF NOT EXISTS idx_docs_type ON $tableDocuments (document_type);',
     'CREATE INDEX IF NOT EXISTS idx_docs_status ON $tableDocuments (status);',
     'CREATE INDEX IF NOT EXISTS idx_docs_created ON $tableDocuments (date_created DESC);',
+    'CREATE INDEX IF NOT EXISTS idx_borrow_document ON $tableBorrowRequests (document_id);',
+    'CREATE INDEX IF NOT EXISTS idx_borrow_borrower ON $tableBorrowRequests (borrower_email);',
+    'CREATE INDEX IF NOT EXISTS idx_borrow_owner ON $tableBorrowRequests (owner_email);',
   ];
 }
