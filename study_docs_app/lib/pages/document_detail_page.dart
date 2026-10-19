@@ -10,7 +10,6 @@ import '../widgets/cloud_sync_badge.dart';
 import '../widgets/cloud_transfer_progress.dart';
 import '../widgets/confirm_dialog.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import '../struct/firebase_storage_service.dart';
 import '../struct/google_auth_service.dart';
@@ -597,8 +596,9 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
       widget.document.fileUrl != null &&
       widget.document.fileUrl!.contains('firebasestorage.googleapis.com');
 
-  Future<void> _handleUploadToCloud(BuildContext context) async {
+  Future<void> _handleUploadToCloud() async {
     final provider = context.read<DocumentStateProvider>();
+    final messenger = ScaffoldMessenger.of(context);
     setState(() {
       _isUploading = true;
       _uploadProgress = 0.0;
@@ -641,7 +641,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
       await provider.updateDocument(updatedDoc);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text('Đã đồng bộ lên Firebase Cloud Storage thành công!'),
             backgroundColor: Colors.teal,
@@ -650,7 +650,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text('Lỗi khi tải lên Cloud Storage: $e'),
             backgroundColor: Colors.red,
@@ -667,7 +667,9 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
     }
   }
 
-  Future<void> _handleDeleteFromCloud(BuildContext context) async {
+  Future<void> _handleDeleteFromCloud() async {
+    final provider = context.read<DocumentStateProvider>();
+    final messenger = ScaffoldMessenger.of(context);
     final confirm = await ConfirmDialog.show(
       context: context,
       title: 'Xóa tệp trên Cloud?',
@@ -675,7 +677,6 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
     );
     if (!confirm) return;
 
-    final provider = context.read<DocumentStateProvider>();
     try {
       final user = GoogleAuthService().currentUser;
       final uploaderUid = user?.uid ?? 'student_2351170599';
@@ -694,7 +695,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
       await provider.updateDocument(updatedDoc);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text('Đã xóa tệp khỏi Firebase Cloud Storage.'),
             backgroundColor: Colors.orange,
@@ -703,7 +704,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(content: Text('Lỗi khi xóa tệp: $e'), backgroundColor: Colors.red),
         );
       }
@@ -829,7 +830,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _isUploading ? null : () => _handleUploadToCloud(context),
+                    onPressed: _isUploading ? null : _handleUploadToCloud,
                     icon: Icon(
                         _isStoredOnCloud ? Icons.cloud_sync_rounded : Icons.cloud_upload_rounded),
                     label: Text(_isStoredOnCloud ? 'Tải lên lại' : 'Tải lên Cloud Storage'),
@@ -845,7 +846,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
                   IconButton(
                     icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
                     tooltip: 'Xóa tệp khỏi Cloud Storage',
-                    onPressed: () => _handleDeleteFromCloud(context),
+                    onPressed: _handleDeleteFromCloud,
                   ),
                 ],
               ],
@@ -1042,6 +1043,8 @@ class _BorrowSharingSectionState extends State<_BorrowSharingSection> {
                             ),
                           ),
                           onPressed: () async {
+                            final scaffoldMessenger =
+                                ScaffoldMessenger.of(context);
                             final req = await BorrowRequestDialog.show(
                               context: context,
                               document: widget.document,
@@ -1049,7 +1052,7 @@ class _BorrowSharingSectionState extends State<_BorrowSharingSection> {
                               currentUserName: userName,
                             );
                             if (req != null && mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              scaffoldMessenger.showSnackBar(
                                 SnackBar(
                                   backgroundColor: const Color(0xFF10B981),
                                   behavior: SnackBarBehavior.floating,
