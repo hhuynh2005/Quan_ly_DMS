@@ -26,6 +26,9 @@ dependencies:
   firebase_storage: ^12.3.4
   cloud_firestore: ^5.4.4
   connectivity_plus: ^6.0.5
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
