@@ -251,7 +251,7 @@ class _CampusMapPageState extends State<CampusMapPage> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => DocumentDetailPage(
-                                        document: docs.first,
+                                        documentId: docs.first.id,
                                       ),
                                     ),
                                   );

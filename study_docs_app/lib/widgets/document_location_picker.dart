@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../struct/document_location_model.dart';
-import '../theme.dart';
 
 /// Thành phần chọn và thiết lập vị trí vật lý của tài liệu tại ĐH Thủy Lợi (TH2)
 /// Phụ trách: NGUYỄN TRUNG KIÊN (MSSV: 2251172394)

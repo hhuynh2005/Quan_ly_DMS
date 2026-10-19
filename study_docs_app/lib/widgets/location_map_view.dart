@@ -3,10 +3,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
+import '../struct/document_enums.dart';
 import '../struct/document_location_model.dart';
 import '../struct/document_model.dart';
 import '../struct/document_state_provider.dart';
-import '../struct/responsive_breakpoints.dart';
 
 /// Thành phần Bản đồ số định vị vị trí tài liệu tại ĐH Thủy Lợi (TH2)
 /// Phụ trách: NGUYỄN TRUNG KIÊN (MSSV: 2251172394)

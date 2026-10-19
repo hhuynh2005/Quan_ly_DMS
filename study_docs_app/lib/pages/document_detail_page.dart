@@ -13,7 +13,10 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../struct/firebase_storage_service.dart';
 import '../struct/google_auth_service.dart';
+import '../struct/responsive_breakpoints.dart';
+import '../widgets/document_location_picker.dart';
 import 'add_edit_document_page.dart';
+import 'campus_map_page.dart';
 
 /// Màn hình Chi tiết Tài liệu học tập (Xem, Chuyển trạng thái, Sửa, Xóa)
 class DocumentDetailPage extends StatelessWidget {
@@ -112,9 +115,12 @@ class DocumentDetailPage extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: ResponsiveContentContainer(
+        maxWidth: 850,
+        padding: EdgeInsets.zero,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
           // 1. Thẻ Header tổng quan
           Card(
             elevation: 2,
@@ -485,7 +491,11 @@ class DocumentDetailPage extends StatelessWidget {
           _CloudStorageCard(document: document),
           const SizedBox(height: 16),
 
-          // 6. Thẻ Tags
+          // 6. Vị trí vật lý tài liệu tại TLU (Nguyễn Trung Kiên - TH2)
+          _DocumentLocationDetailCard(document: document),
+          const SizedBox(height: 16),
+
+          // 7. Thẻ Tags
           if (document.tags.isNotEmpty)
             Card(
               elevation: 1,
@@ -523,6 +533,7 @@ class DocumentDetailPage extends StatelessWidget {
 
           const SizedBox(height: 30),
         ],
+      ),
       ),
     );
   }
@@ -843,6 +854,199 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
                 ],
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Thẻ hiển thị và định vị vị trí vật lý tại TLU (Nguyễn Trung Kiên - TH2)
+class _DocumentLocationDetailCard extends StatelessWidget {
+  final Document document;
+
+  const _DocumentLocationDetailCard({required this.document});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final provider = context.watch<DocumentStateProvider>();
+    final location = provider.getLocationForDocument(document.id);
+
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.pin_drop_rounded,
+                    color: Colors.teal,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Vị trí vật lý (TLU Campus)',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Trường Đại học Thủy Lợi (175 Tây Sơn)',
+                        style: TextStyle(fontSize: 11.5, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: location != null
+                        ? Colors.teal.withValues(alpha: 0.15)
+                        : (isDark ? Colors.white10 : Colors.grey.shade200),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    location != null ? 'ĐÃ ĐỊNH VỊ' : 'CHƯA GÁN',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: location != null ? Colors.teal : Colors.grey,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (location != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white10 : Colors.teal.shade50.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.teal.withValues(alpha: 0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.business_rounded, size: 16, color: Colors.teal),
+                        const SizedBox(width: 6),
+                        Text(
+                          location.building,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      location.summary,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(Icons.gps_fixed, size: 12, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Text(
+                          'GPS: ${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}',
+                          style: const TextStyle(fontSize: 10.5, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CampusMapPage(initialLocation: location),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.map_rounded, size: 18),
+                      label: const Text('Xem trên bản đồ TLU'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final newLoc = await DocumentLocationPicker.showLocationBottomSheet(
+                        context: context,
+                        documentId: document.id,
+                        currentLocation: location,
+                      );
+                      if (newLoc != null) {
+                        await provider.saveDocumentLocation(newLoc);
+                      }
+                    },
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Đổi'),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              Text(
+                'Tài liệu này chưa được gán vị trí lưu trữ vật lý trong khuôn viên ĐH Thủy Lợi.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final newLoc = await DocumentLocationPicker.showLocationBottomSheet(
+                      context: context,
+                      documentId: document.id,
+                      currentLocation: null,
+                    );
+                    if (newLoc != null) {
+                      await provider.saveDocumentLocation(newLoc);
+                    }
+                  },
+                  icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+                  label: const Text('Thêm vị trí tại ĐH Thủy Lợi'),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

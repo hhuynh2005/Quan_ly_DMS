@@ -3,10 +3,13 @@ import 'package:provider/provider.dart';
 
 import '../functions.dart';
 import '../struct/document_enums.dart';
+import '../struct/document_location_model.dart';
 import '../struct/document_model.dart';
 import '../struct/document_state_provider.dart';
+import '../struct/responsive_breakpoints.dart';
 import '../theme.dart';
 import '../widgets/cloud_transfer_progress.dart';
+import '../widgets/document_location_picker.dart';
 
 /// Màn hình Thêm mới hoặc Chỉnh sửa Tài liệu học tập (CRUD Create / Update)
 class AddEditDocumentPage extends StatefulWidget {
@@ -44,6 +47,7 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
   bool _isFavorite = false;
   bool _isSaving = false;
   bool _syncToCloud = true;
+  DocumentLocation? _documentLocation;
 
   @override
   void initState() {
@@ -75,11 +79,15 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final provider = context.read<DocumentStateProvider>();
     if (_selectedSubjectId == null) {
-      final subjects = context.read<DocumentStateProvider>().subjects;
+      final subjects = provider.subjects;
       if (subjects.isNotEmpty) {
         _selectedSubjectId = subjects.first.id;
       }
+    }
+    if (_documentLocation == null && widget.documentToEdit != null) {
+      _documentLocation = provider.getLocationForDocument(widget.documentToEdit!.id);
     }
   }
 
@@ -173,6 +181,16 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
           cloudSyncStatus: _syncToCloud ? CloudSyncStatus.synced : CloudSyncStatus.pending,
         );
         await provider.updateDocument(updated);
+
+        // Lưu hoặc cập nhật vị trí vật lý (Nguyễn Trung Kiên)
+        if (_documentLocation != null) {
+          await provider.saveDocumentLocation(
+            _documentLocation!.copyWith(documentId: updated.id),
+          );
+        } else {
+          await provider.deleteDocumentLocation(updated.id);
+        }
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Đã cập nhật thông tin tài liệu thành công!')),
@@ -195,6 +213,14 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
           dueDate: _selectedDueDate,
           tags: tags,
         );
+
+        // Lưu vị trí vật lý nếu có thiết lập (Nguyễn Trung Kiên)
+        if (_documentLocation != null) {
+          await provider.saveDocumentLocation(
+            _documentLocation!.copyWith(documentId: newDoc.id),
+          );
+        }
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Đã thêm tài liệu mới thành công!')),
@@ -247,10 +273,13 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+      body: ResponsiveContentContainer(
+        maxWidth: 800,
+        padding: EdgeInsets.zero,
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
           children: [
             // 1. Tiêu đề tài liệu
             TextFormField(
@@ -494,7 +523,17 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
             ),
             const SizedBox(height: 18),
 
-            // 9. Tùy chọn đồng bộ Cloud (Nguyễn Trung Kiên)
+            // 9. Vị trí vật lý tài liệu tại TLU (Nguyễn Trung Kiên - TH2)
+            DocumentLocationPicker(
+              documentId: widget.documentToEdit?.id ?? 'temp_new_doc',
+              initialLocation: _documentLocation,
+              onLocationChanged: (loc) {
+                setState(() => _documentLocation = loc);
+              },
+            ),
+            const SizedBox(height: 18),
+
+            // 10. Tùy chọn đồng bộ Cloud (Nguyễn Trung Kiên)
             Card(
               elevation: 0,
               shape: RoundedRectangleBorder(
@@ -553,6 +592,7 @@ class _AddEditDocumentPageState extends State<AddEditDocumentPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

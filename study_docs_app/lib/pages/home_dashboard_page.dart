@@ -14,11 +14,13 @@ import '../widgets/stat_summary_card.dart';
 import '../widgets/user_profile_header.dart';
 import 'about_app_page.dart';
 import 'add_edit_document_page.dart';
+import 'campus_map_page.dart';
 import 'document_detail_page.dart';
 import 'document_list_page.dart';
 import 'login_page.dart';
 import 'search_document_page.dart';
 import 'subjects_manage_page.dart';
+import '../struct/responsive_breakpoints.dart';
 
 /// Màn hình chính Dashboard tổng quan
 class HomeDashboardPage extends StatefulWidget {
@@ -196,6 +198,10 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                     );
                   }
                 }
+              } else if (value == 'map') {
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const CampusMapPage()));
               } else if (value == 'about') {
                 Navigator.of(
                   context,
@@ -203,6 +209,16 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
               }
             },
             itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'map',
+                child: Row(
+                  children: [
+                    Icon(Icons.map_rounded, size: 20, color: Colors.teal),
+                    SizedBox(width: 10),
+                    Text('Bản đồ vị trí TLU (TH2)'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'subjects',
                 child: Row(
@@ -229,7 +245,7 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                   children: [
                     Icon(Icons.info_outline_rounded, size: 20),
                     SizedBox(width: 10),
-                    Text('Thông tin Đồ án TH1'),
+                    Text('Thông tin Đồ án TH1 & TH2'),
                   ],
                 ),
               ),
@@ -243,8 +259,11 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
               onRefresh: () async {
                 await Future.delayed(const Duration(milliseconds: 300));
               },
-              child: CustomScrollView(
-                slivers: [
+              child: ResponsiveContentContainer(
+                maxWidth: 1100,
+                padding: EdgeInsets.zero,
+                child: CustomScrollView(
+                  slivers: [
                   // 0. Chỉ báo trạng thái Cloud và Ngoại tuyến (Nguyễn Trung Kiên)
                   SliverToBoxAdapter(
                     child: OfflineModeIndicator(
@@ -433,10 +452,115 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                     ),
                   ),
 
+                  // 2.5 Banner Bản đồ vị trí tài liệu TLU (Nguyễn Trung Kiên - TH2)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      child: Card(
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: Colors.teal.withValues(alpha: 0.35),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            gradient: LinearGradient(
+                              colors: isDark
+                                  ? [const Color(0xFF003830), const Color(0xFF004D40)]
+                                  : [Colors.teal.shade50, Colors.teal.shade100.withValues(alpha: 0.4)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal.withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.map_rounded,
+                                  color: Colors.teal,
+                                  size: 26,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Text(
+                                          'Bản đồ vị trí tài liệu TLU',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14.5,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.teal,
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Text(
+                                            'TH2',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      'Định vị ${provider.locations.length} vị trí lưu trữ tại Nhà A4 & Thư viện TLU',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              FilledButton.tonalIcon(
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (_) => const CampusMapPage()),
+                                  );
+                                },
+                                icon: const Icon(Icons.explore_rounded, size: 16),
+                                label: const Text('Bản đồ', style: TextStyle(fontSize: 12)),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.teal.withValues(alpha: 0.2),
+                                  foregroundColor: Colors.teal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
                   // 3. Danh sách Môn học (Cuộn ngang)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -637,6 +761,7 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
                 ],
               ),
             ),
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.of(context).push(
@@ -662,6 +787,10 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
               MaterialPageRoute(builder: (_) => const SubjectsManagePage()),
             );
           } else if (idx == 3) {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const CampusMapPage()),
+            );
+          } else if (idx == 4) {
             Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const AboutAppPage()));
           } else {
@@ -683,6 +812,11 @@ class _HomeDashboardPageState extends State<HomeDashboardPage>
             icon: Icon(Icons.category_outlined),
             selectedIcon: Icon(Icons.category_rounded),
             label: 'Môn học',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map_rounded),
+            label: 'Bản đồ TLU',
           ),
           NavigationDestination(
             icon: Icon(Icons.info_outline_rounded),
