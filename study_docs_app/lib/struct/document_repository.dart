@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../database/app_database.dart';
 import '../functions.dart';
 import 'document_enums.dart';
+import 'document_location_model.dart';
 import 'document_model.dart';
 import 'subject_model.dart';
 
@@ -23,6 +24,7 @@ class DocumentRepository {
   Stream<List<Document>> watchAllDocuments() => _db.watchAllDocuments();
   Stream<List<Subject>> watchSubjects() => _db.watchSubjects();
   Stream<Map<String, int>> watchStats() => _db.watchStats();
+  Stream<List<DocumentLocation>> watchDocumentLocations() => _db.watchDocumentLocations();
 
   // ===========================================================================
   // TÀI LIỆU HỌC TẬP (DOCUMENTS) - BUSINESS LOGIC & VALIDATION
@@ -233,6 +235,38 @@ class DocumentRepository {
 
   Future<List<Map<String, dynamic>>> getDeleteLogs() async {
     return await _db.getDeleteLogs();
+  }
+
+  // ===========================================================================
+  // VỊ TRÍ VẬT LÝ TÀI LIỆU (DOCUMENT LOCATIONS - TH2)
+  // ===========================================================================
+
+  /// Lấy toàn bộ danh sách vị trí vật lý
+  Future<List<DocumentLocation>> getAllDocumentLocations() async {
+    return await _db.getAllDocumentLocations();
+  }
+
+  /// Lấy vị trí vật lý theo documentId
+  Future<DocumentLocation?> getDocumentLocation(String documentId) async {
+    if (documentId.trim().isEmpty) return null;
+    return await _db.getDocumentLocation(documentId);
+  }
+
+  /// Lưu hoặc cập nhật vị trí vật lý tài liệu
+  Future<void> saveDocumentLocation(DocumentLocation location) async {
+    if (location.building.trim().isEmpty) {
+      throw ArgumentError('Tên tòa nhà không được để trống.');
+    }
+    if (location.room.trim().isEmpty) {
+      throw ArgumentError('Phòng học / khu vực không được để trống.');
+    }
+    await _db.saveDocumentLocation(location);
+  }
+
+  /// Xóa vị trí vật lý tài liệu
+  Future<int> deleteDocumentLocation(String documentId) async {
+    if (documentId.trim().isEmpty) return 0;
+    return await _db.deleteDocumentLocation(documentId);
   }
 
   Future<void> resetData() async {

@@ -10,6 +10,7 @@ import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'package:uuid/uuid.dart';
 
 import '../struct/document_enums.dart';
+import '../struct/document_location_model.dart';
 import '../struct/document_model.dart';
 import '../struct/subject_model.dart';
 import 'mock_data.dart';
@@ -30,6 +31,7 @@ class AppDatabase {
   final List<Document> _fallbackDocuments = [];
   final List<Subject> _fallbackSubjects = [];
   final List<Map<String, dynamic>> _fallbackDeleteLogs = [];
+  final List<DocumentLocation> _fallbackLocations = [];
 
   // StreamControllers mô phỏng cơ chế reactive stream watch() của Drift/Cashew
   final StreamController<List<Document>> _documentsStreamController =
@@ -38,6 +40,8 @@ class AppDatabase {
       StreamController<List<Subject>>.broadcast();
   final StreamController<Map<String, int>> _statsStreamController =
       StreamController<Map<String, int>>.broadcast();
+  final StreamController<List<DocumentLocation>> _locationsStreamController =
+      StreamController<List<DocumentLocation>>.broadcast();
 
   // Constructor
   AppDatabase._internal();
@@ -312,6 +316,7 @@ class AppDatabase {
     final batch = db.batch();
     batch.execute(AppTables.createTableSubjects);
     batch.execute(AppTables.createTableDocuments);
+    batch.execute(AppTables.createTableDocumentLocations);
     batch.execute(AppTables.createTableDeleteLogs);
     batch.execute(AppTables.createTableAppSettings);
 
@@ -342,6 +347,11 @@ class AppDatabase {
       // Nạp Tài liệu học tập
       for (final doc in MockData.getInitialDocuments()) {
         batch.insert(AppTables.tableDocuments, doc.toMap());
+      }
+
+      // Nạp Vị trí vật lý mẫu tại ĐH Thủy Lợi (TH2)
+      for (final loc in MockData.getInitialLocations()) {
+        batch.insert(AppTables.tableDocumentLocations, loc.toMap());
       }
 
       // Cài đặt mặc định
@@ -381,6 +391,11 @@ class AppDatabase {
       final stats = await getDocumentStats();
       if (!_statsStreamController.isClosed) {
         _statsStreamController.add(stats);
+      }
+
+      final locations = await getAllDocumentLocations();
+      if (!_locationsStreamController.isClosed) {
+        _locationsStreamController.add(locations);
       }
     } catch (e) {
       debugPrint('Error notifying watchers: $e');
@@ -904,10 +919,99 @@ class AppDatabase {
     return result;
   }
 
+  // ===========================================================================
+  // VỊ TRÍ VẬT LÝ TÀI LIỆU (DOCUMENT LOCATIONS - TH2)
+  // ===========================================================================
+
+  /// Theo dõi danh sách vị trí tài liệu theo thời gian thực (Reactive Stream)
+  Stream<List<DocumentLocation>> watchDocumentLocations() {
+    getAllDocumentLocations()
+        .then((locations) {
+          if (!_locationsStreamController.isClosed) {
+            _locationsStreamController.add(locations);
+          }
+        })
+        .catchError((err) {
+          debugPrint('watchDocumentLocations catchError: $err');
+          if (!_locationsStreamController.isClosed) {
+            _locationsStreamController.addError(err);
+          }
+        });
+    return _locationsStreamController.stream;
+  }
+
+  /// Lấy toàn bộ danh sách vị trí tài liệu vật lý
+  Future<List<DocumentLocation>> getAllDocumentLocations() async {
+    final db = await database;
+    if (db == null) {
+      return List.unmodifiable(_fallbackLocations);
+    }
+    final List<Map<String, dynamic>> maps = await db.query(
+      AppTables.tableDocumentLocations,
+      orderBy: 'created_at DESC',
+    );
+    return maps.map((map) => DocumentLocation.fromMap(map)).toList();
+  }
+
+  /// Lấy vị trí vật lý của một tài liệu cụ thể
+  Future<DocumentLocation?> getDocumentLocation(String documentId) async {
+    final db = await database;
+    if (db == null) {
+      try {
+        return _fallbackLocations.firstWhere((l) => l.documentId == documentId);
+      } catch (_) {
+        return null;
+      }
+    }
+    final List<Map<String, dynamic>> maps = await db.query(
+      AppTables.tableDocumentLocations,
+      where: 'document_id = ?',
+      whereArgs: [documentId],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return DocumentLocation.fromMap(maps.first);
+  }
+
+  /// Lưu hoặc cập nhật vị trí vật lý của tài liệu
+  Future<void> saveDocumentLocation(DocumentLocation location) async {
+    final db = await database;
+    if (db == null) {
+      _fallbackLocations.removeWhere((l) => l.documentId == location.documentId);
+      _fallbackLocations.add(location);
+    } else {
+      await db.insert(
+        AppTables.tableDocumentLocations,
+        location.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await _notifyWatchers();
+  }
+
+  /// Xóa vị trí vật lý của tài liệu
+  Future<int> deleteDocumentLocation(String documentId) async {
+    final db = await database;
+    int count = 0;
+    if (db == null) {
+      _fallbackLocations.removeWhere((l) => l.documentId == documentId);
+      count = 1;
+    } else {
+      count = await db.delete(
+        AppTables.tableDocumentLocations,
+        where: 'document_id = ?',
+        whereArgs: [documentId],
+      );
+    }
+    await _notifyWatchers();
+    return count;
+  }
+
   /// Giải phóng tài nguyên StreamControllers
   void dispose() {
     _documentsStreamController.close();
     _subjectsStreamController.close();
     _statsStreamController.close();
+    _locationsStreamController.close();
   }
 }

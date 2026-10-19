@@ -1,5 +1,6 @@
 import 'package:uuid/uuid.dart';
 import '../struct/document_enums.dart';
+import '../struct/document_location_model.dart';
 import '../struct/document_model.dart';
 import '../struct/subject_model.dart';
 
@@ -182,6 +183,53 @@ class MockData {
         priority: DocumentPriority.low,
         tags: ['CTDL', 'GhiChu', 'Graph', 'Dijkstra'],
         dateCreated: now.subtract(const Duration(days: 6)),
+      ),
+    ];
+  }
+
+  // Danh sách vị trí vật lý mẫu của tài liệu tại ĐH Thủy Lợi (TH2)
+  static List<DocumentLocation> getInitialLocations() {
+    final now = DateTime.now();
+    return [
+      DocumentLocation(
+        id: 'loc_th1_cashew',
+        documentId: 'doc_th1_cashew',
+        building: 'Nhà A4 (Khoa CNTT)',
+        room: 'Phòng 301 - Lab Công nghệ Phần mềm',
+        shelf: 'Tủ tài liệu KTPM - Ngăn 1',
+        latitude: 21.00715,
+        longitude: 105.82425,
+        createdAt: now.subtract(const Duration(days: 2)),
+      ),
+      DocumentLocation(
+        id: 'loc_slide_kientruc',
+        documentId: 'doc_slide_kientruc',
+        building: 'Thư viện ĐH Thủy Lợi',
+        room: 'Phòng mượn Tầng 2',
+        shelf: 'Kệ TH-02 (Tin học)',
+        latitude: 21.00742,
+        longitude: 105.82491,
+        createdAt: now.subtract(const Duration(days: 5)),
+      ),
+      DocumentLocation(
+        id: 'loc_giaotrinh_flutter',
+        documentId: 'doc_giaotrinh_flutter',
+        building: 'Thư viện ĐH Thủy Lợi',
+        room: 'Phòng tự học Tầng 3',
+        shelf: 'Kệ GT-05 (Giáo trình CNTT)',
+        latitude: 21.00746,
+        longitude: 105.82498,
+        createdAt: now.subtract(const Duration(days: 10)),
+      ),
+      DocumentLocation(
+        id: 'loc_csdl_sqlite',
+        documentId: 'doc_csdl_sqlite',
+        building: 'Nhà A4 (Khoa CNTT)',
+        room: 'Phòng 204 - Văn phòng Khoa',
+        shelf: 'Ngăn CSDL & HTTT',
+        latitude: 21.00712,
+        longitude: 105.82420,
+        createdAt: now.subtract(const Duration(days: 8)),
       ),
     ];
   }

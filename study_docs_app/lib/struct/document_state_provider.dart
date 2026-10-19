@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../functions.dart';
 import 'document_enums.dart';
 import 'cloud_sync_service.dart';
+import 'document_location_model.dart';
 import 'document_model.dart';
 import 'document_repository.dart';
 import 'subject_model.dart';
@@ -18,6 +19,7 @@ class DocumentStateProvider extends ChangeNotifier {
 
   List<Document> _allDocuments = [];
   List<Subject> _subjects = [];
+  List<DocumentLocation> _locations = [];
   Map<String, int> _stats = {
     'total_documents': 0,
     'total_subjects': 0,
@@ -39,6 +41,7 @@ class DocumentStateProvider extends ChangeNotifier {
   // Stream Subscriptions
   StreamSubscription<List<Document>>? _docsSub;
   StreamSubscription<List<Subject>>? _subjectsSub;
+  StreamSubscription<List<DocumentLocation>>? _locationsSub;
   StreamSubscription<Map<String, int>>? _statsSub;
   StreamSubscription<User?>? _authSub;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
@@ -64,6 +67,7 @@ class DocumentStateProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   List<Document> get allDocuments => _allDocuments;
   List<Subject> get subjects => _subjects;
+  List<DocumentLocation> get locations => _locations;
   Map<String, int> get stats => _stats;
   String get searchQuery => _searchQuery;
   String? get selectedSubjectId => _selectedSubjectId;
@@ -191,6 +195,17 @@ class DocumentStateProvider extends ChangeNotifier {
       },
       onError: (err) {
         debugPrint('Provider error watching stats: $err');
+      },
+    );
+
+    // Lắng nghe stream vị trí vật lý tài liệu (TH2)
+    _locationsSub = _repository.watchDocumentLocations().listen(
+      (locs) {
+        _locations = locs;
+        notifyListeners();
+      },
+      onError: (err) {
+        debugPrint('Provider error watching locations: $err');
       },
     );
 
@@ -472,10 +487,47 @@ class DocumentStateProvider extends ChangeNotifier {
     _scheduleSync();
   }
 
+  // ===========================================================================
+  // VỊ TRÍ VẬT LÝ TÀI LIỆU (DOCUMENT LOCATIONS - TH2)
+  // ===========================================================================
+
+  /// Lấy vị trí vật lý của tài liệu theo documentId
+  DocumentLocation? getLocationForDocument(String documentId) {
+    try {
+      return _locations.firstWhere((l) => l.documentId == documentId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Lưu hoặc cập nhật vị trí vật lý của tài liệu
+  Future<void> saveDocumentLocation(DocumentLocation location) async {
+    await _repository.saveDocumentLocation(location);
+    _scheduleSync();
+    notifyListeners();
+  }
+
+  /// Xóa vị trí vật lý của tài liệu
+  Future<void> deleteDocumentLocation(String documentId) async {
+    await _repository.deleteDocumentLocation(documentId);
+    _scheduleSync();
+    notifyListeners();
+  }
+
+  /// Lấy danh sách tài liệu đang đặt tại một tòa nhà cụ thể
+  List<Document> getDocumentsInBuilding(String building) {
+    final docIds = _locations
+        .where((l) => l.building.toLowerCase().contains(building.toLowerCase()))
+        .map((l) => l.documentId)
+        .toSet();
+    return _allDocuments.where((d) => docIds.contains(d.id)).toList();
+  }
+
   @override
   void dispose() {
     _docsSub?.cancel();
     _subjectsSub?.cancel();
+    _locationsSub?.cancel();
     _statsSub?.cancel();
     _authSub?.cancel();
     _connectivitySub?.cancel();
