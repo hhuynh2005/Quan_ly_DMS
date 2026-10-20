@@ -314,6 +314,7 @@ class AppDatabase {
     batch.execute(AppTables.createTableDocuments);
     batch.execute(AppTables.createTableDeleteLogs);
     batch.execute(AppTables.createTableAppSettings);
+    batch.execute(AppTables.createTableBorrowRequests);
 
     for (final indexSql in AppTables.createIndexes) {
       batch.execute(indexSql);
@@ -323,6 +324,13 @@ class AppDatabase {
 
   /// Nạp dữ liệu mẫu ban đầu nếu cơ sở dữ liệu còn trống
   Future<void> _seedInitialDataIfNeeded(Database db) async {
+    await db.execute(AppTables.createTableBorrowRequests);
+    for (final indexSql in AppTables.createIndexes) {
+      try {
+        await db.execute(indexSql);
+      } catch (_) {}
+    }
+
     final initializationMarker = await db.query(
       AppTables.tableAppSettings,
       columns: ['key'],

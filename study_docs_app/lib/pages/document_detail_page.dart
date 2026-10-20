@@ -10,11 +10,14 @@ import '../widgets/cloud_sync_badge.dart';
 import '../widgets/cloud_transfer_progress.dart';
 import '../widgets/confirm_dialog.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import '../struct/firebase_storage_service.dart';
 import '../struct/google_auth_service.dart';
+import '../struct/borrow_model.dart';
+import '../struct/borrow_service.dart';
+import '../widgets/borrow_request_dialog.dart';
 import 'add_edit_document_page.dart';
+import 'borrow_management_page.dart';
 
 /// Màn hình Chi tiết Tài liệu học tập (Xem, Chuyển trạng thái, Sửa, Xóa)
 class DocumentDetailPage extends StatelessWidget {
@@ -522,6 +525,10 @@ class DocumentDetailPage extends StatelessWidget {
               ),
             ),
 
+          const SizedBox(height: 16),
+          // 4. Mục Mượn & Chia sẻ tài liệu (TH2 - Lê Anh Tuấn)
+          _BorrowSharingSection(document: document),
+
           const SizedBox(height: 30),
         ],
       ),
@@ -589,8 +596,9 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
       widget.document.fileUrl != null &&
       widget.document.fileUrl!.contains('firebasestorage.googleapis.com');
 
-  Future<void> _handleUploadToCloud(BuildContext context) async {
+  Future<void> _handleUploadToCloud() async {
     final provider = context.read<DocumentStateProvider>();
+    final messenger = ScaffoldMessenger.of(context);
     setState(() {
       _isUploading = true;
       _uploadProgress = 0.0;
@@ -633,7 +641,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
       await provider.updateDocument(updatedDoc);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text('Đã đồng bộ lên Firebase Cloud Storage thành công!'),
             backgroundColor: Colors.teal,
@@ -642,7 +650,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text('Lỗi khi tải lên Cloud Storage: $e'),
             backgroundColor: Colors.red,
@@ -659,7 +667,9 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
     }
   }
 
-  Future<void> _handleDeleteFromCloud(BuildContext context) async {
+  Future<void> _handleDeleteFromCloud() async {
+    final provider = context.read<DocumentStateProvider>();
+    final messenger = ScaffoldMessenger.of(context);
     final confirm = await ConfirmDialog.show(
       context: context,
       title: 'Xóa tệp trên Cloud?',
@@ -667,7 +677,6 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
     );
     if (!confirm) return;
 
-    final provider = context.read<DocumentStateProvider>();
     try {
       final user = GoogleAuthService().currentUser;
       final uploaderUid = user?.uid ?? 'student_2351170599';
@@ -686,7 +695,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
       await provider.updateDocument(updatedDoc);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text('Đã xóa tệp khỏi Firebase Cloud Storage.'),
             backgroundColor: Colors.orange,
@@ -695,7 +704,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(content: Text('Lỗi khi xóa tệp: $e'), backgroundColor: Colors.red),
         );
       }
@@ -821,7 +830,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _isUploading ? null : () => _handleUploadToCloud(context),
+                    onPressed: _isUploading ? null : _handleUploadToCloud,
                     icon: Icon(
                         _isStoredOnCloud ? Icons.cloud_sync_rounded : Icons.cloud_upload_rounded),
                     label: Text(_isStoredOnCloud ? 'Tải lên lại' : 'Tải lên Cloud Storage'),
@@ -837,7 +846,7 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
                   IconButton(
                     icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
                     tooltip: 'Xóa tệp khỏi Cloud Storage',
-                    onPressed: () => _handleDeleteFromCloud(context),
+                    onPressed: _handleDeleteFromCloud,
                   ),
                 ],
               ],
@@ -848,3 +857,237 @@ class _CloudStorageCardState extends State<_CloudStorageCard> {
     );
   }
 }
+
+/// Thẻ tương tác Mượn & Chia sẻ quyền truy cập tài liệu (TH2 - Lê Anh Tuấn)
+class _BorrowSharingSection extends StatefulWidget {
+  final Document document;
+  const _BorrowSharingSection({required this.document});
+
+  @override
+  State<_BorrowSharingSection> createState() => _BorrowSharingSectionState();
+}
+
+class _BorrowSharingSectionState extends State<_BorrowSharingSection> {
+  final BorrowService _borrowService = BorrowService();
+  final GoogleAuthService _authService = GoogleAuthService();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final user = _authService.currentUser;
+    final userEmail = user?.email ?? '2151060296@e.tlu.edu.vn';
+    final userName = user?.displayName ?? 'Lê Anh Tuấn';
+
+    return StreamBuilder<List<BorrowRequest>>(
+      stream: _borrowService.requestsStream,
+      builder: (context, snapshot) {
+        final activeReq = _borrowService.getActiveRequestForDocument(
+          widget.document.id,
+          userEmail,
+        );
+
+        return Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.handshake_rounded,
+                        color: AppTheme.primaryColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mượn & Chia Sẻ Tài Liệu (TH2)',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Phụ trách: Lê Anh Tuấn (2151060296)',
+                            style: TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (activeReq != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: activeReq.status.color.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: activeReq.status.color.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(activeReq.status.icon, size: 12, color: activeReq.status.color),
+                            const SizedBox(width: 4),
+                            Text(
+                              activeReq.status.displayName,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: activeReq.status.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (activeReq != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: activeReq.status.color.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Bạn đang có yêu cầu mượn tài liệu này:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: activeReq.status.color,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          activeReq.dueDate != null
+                              ? '🗓️ Hạn trả: ${activeReq.dueDate!.day}/${activeReq.dueDate!.month}/${activeReq.dueDate!.year}'
+                              : '🗓️ Ngày yêu cầu: ${activeReq.requestDate.day}/${activeReq.requestDate.month}/${activeReq.requestDate.year}',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        if (activeReq.note != null && activeReq.note!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '💬 "${activeReq.note}"',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.manage_accounts_rounded, size: 18),
+                      label: const Text('Xem trong Quản lý Mượn/Trả'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primaryColor,
+                        side: const BorderSide(color: AppTheme.primaryColor),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                BorrowManagementPage(initialEmail: userEmail),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ] else ...[
+                  Text(
+                    'Bạn có thể gửi yêu cầu mượn bản thảo in hoặc xin quyền truy cập tài liệu này trực tiếp tới chủ sở hữu.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.textTheme.bodyMedium?.color?.withValues(
+                        alpha: 0.8,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.send_rounded, size: 16),
+                          label: const Text('Gửi yêu cầu mượn'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: () async {
+                            final scaffoldMessenger =
+                                ScaffoldMessenger.of(context);
+                            final req = await BorrowRequestDialog.show(
+                              context: context,
+                              document: widget.document,
+                              currentUserEmail: userEmail,
+                              currentUserName: userName,
+                            );
+                            if (req != null && mounted) {
+                              scaffoldMessenger.showSnackBar(
+                                SnackBar(
+                                  backgroundColor: const Color(0xFF10B981),
+                                  behavior: SnackBarBehavior.floating,
+                                  content: Text(
+                                    '🎉 Đã gửi yêu cầu mượn "${widget.document.title}" thành công!',
+                                  ),
+                                ),
+                              );
+                              setState(() {});
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.open_in_new_rounded),
+                        tooltip: 'Mở trang Quản lý Mượn/Trả',
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  BorrowManagementPage(initialEmail: userEmail),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
