@@ -13,6 +13,29 @@ class BorrowRequestDialog extends StatefulWidget {
   final String currentUserEmail;
   final String currentUserName;
 
+  static final List<Map<String, String>> teamAccounts = [
+    {
+      'email': '2351170599@e.tlu.edu.vn',
+      'name': 'Nguyễn Văn Huỳnh (Nhóm trưởng)',
+      'role': 'Trưởng nhóm TH2',
+    },
+    {
+      'email': '2151060296@e.tlu.edu.vn',
+      'name': 'Lê Anh Tuấn (Phụ trách Mượn/Trả)',
+      'role': 'Thành viên TH2',
+    },
+    {
+      'email': '2251172394@e.tlu.edu.vn',
+      'name': 'NGUYỄN TRUNG KIÊN (Responsive & Map)',
+      'role': 'Thành viên TH2',
+    },
+    {
+      'email': '2351170629@e.tlu.edu.vn',
+      'name': 'Trần Anh Tuấn (Recommendation & Tag)',
+      'role': 'Thành viên TH2',
+    },
+  ];
+
   const BorrowRequestDialog({
     super.key,
     required this.document,
@@ -69,6 +92,16 @@ class _BorrowRequestDialogState extends State<BorrowRequestDialog> {
   int _borrowDays = 7;
   DateTime _dueDate = DateTime.now().add(const Duration(days: 7));
   bool _isSubmitting = false;
+  late Map<String, String> _selectedOwner;
+
+  @override
+  void initState() {
+    super.initState();
+    final others = BorrowRequestDialog.teamAccounts.where(
+      (m) => m['email']?.toLowerCase() != widget.currentUserEmail.toLowerCase(),
+    ).toList();
+    _selectedOwner = others.isNotEmpty ? others.first : BorrowRequestDialog.teamAccounts.first;
+  }
 
   @override
   void dispose() {
@@ -95,9 +128,9 @@ class _BorrowRequestDialogState extends State<BorrowRequestDialog> {
         borrowerName: widget.currentUserName.isNotEmpty
             ? widget.currentUserName
             : 'Sinh viên TLU',
-        ownerId: 'owner_${widget.document.subjectId}',
-        ownerEmail: '2351170599@e.tlu.edu.vn', // Giả lập chủ sở hữu tài liệu học phần
-        ownerName: 'Nguyễn Văn Huỳnh (Nhóm trưởng)',
+        ownerId: _selectedOwner['email']!,
+        ownerEmail: _selectedOwner['email']!,
+        ownerName: _selectedOwner['name']!,
         dueDate: _dueDate,
         note: _noteController.text.trim().isNotEmpty
             ? _noteController.text.trim()
@@ -220,6 +253,66 @@ class _BorrowRequestDialogState extends State<BorrowRequestDialog> {
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Lựa chọn Chủ sở hữu tài liệu (Người duyệt mượn)
+          const Text(
+            'Chủ sở hữu tài liệu (Gửi yêu cầu tới):',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.grey[850] : Colors.blueGrey[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.dividerColor.withValues(alpha: 0.4),
+              ),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedOwner['email'],
+                isExpanded: true,
+                items: BorrowRequestDialog.teamAccounts.map((m) {
+                  final isSelf = m['email']?.toLowerCase() == widget.currentUserEmail.toLowerCase();
+                  return DropdownMenuItem<String>(
+                    value: m['email'],
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.account_circle_rounded,
+                          size: 18,
+                          color: isSelf ? Colors.grey : AppTheme.primaryColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${m['name']} (${m['email']})${isSelf ? " - (Bạn)" : ""}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelf ? FontWeight.bold : FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (email) {
+                  if (email != null) {
+                    setState(() {
+                      _selectedOwner = BorrowRequestDialog.teamAccounts.firstWhere(
+                        (m) => m['email'] == email,
+                      );
+                    });
+                  }
+                },
+              ),
             ),
           ),
           const SizedBox(height: 16),
