@@ -1,5 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../struct/document_model.dart';
+import '../struct/document_state_provider.dart';
+import '../widgets/borrow_request_dialog.dart';
+import '../struct/document_enums.dart';
 import 'package:intl/intl.dart';
 
 import '../struct/borrow_model.dart';
@@ -105,6 +110,119 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  // ===========================================================================
+  // TẠO YÊU CẦU MƯỢN MỚI TRỰC TIẾP TỪ BORROW MANAGEMENT PAGE
+  // ===========================================================================
+
+  Future<void> _showCreateRequestPicker(BuildContext context) async {
+    final docs = context.read<DocumentStateProvider>().allDocuments;
+    if (docs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không có tài liệu nào trong hệ thống để mượn.')),
+      );
+      return;
+    }
+
+    final selectedDoc = await showModalBottomSheet<Document>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return Container(
+          height: MediaQuery.of(ctx).size.height * 0.75,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: theme.dividerColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.menu_book_rounded, color: AppTheme.primaryColor),
+                      SizedBox(width: 8),
+                      Text(
+                        'Chọn Tài Liệu Muốn Mượn',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.of(ctx).pop(),
+                  ),
+                ],
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (c, idx) {
+                    final d = docs[idx];
+                    return ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: d.fileFormat.color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(d.fileFormat.icon, color: d.fileFormat.color, size: 20),
+                      ),
+                      title: Text(d.title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      subtitle: Text('${d.documentType.displayName} • ${d.fileFormat.extensionName}', style: const TextStyle(fontSize: 11)),
+                      trailing: FilledButton.tonal(
+                        onPressed: () => Navigator.of(ctx).pop(d),
+                        child: const Text('Chọn', style: TextStyle(fontSize: 12)),
+                      ),
+                      onTap: () => Navigator.of(ctx).pop(d),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selectedDoc != null && context.mounted) {
+      final req = await BorrowRequestDialog.show(
+        context: context,
+        document: selectedDoc,
+        currentUserEmail: _activeEmail,
+        currentUserName: _activeName,
+      );
+      if (req != null && mounted) {
+        _tabController.animateTo(1);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            content: Text('🎉 Đã gửi yêu cầu mượn "${selectedDoc.title}" thành công!'),
+          ),
+        );
+      }
+    }
   }
 
   // ===========================================================================
@@ -533,6 +651,14 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
     final unreadNotifs = _fcm.unreadCount;
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Gửi yêu cầu mượn'),
+        backgroundColor: AppTheme.primaryColor,
+        foregroundColor: Colors.white,
+        tooltip: 'Chọn tài liệu và gửi yêu cầu mượn mới',
+        onPressed: () => _showCreateRequestPicker(context),
+      ),
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1045,10 +1171,12 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
 
         Expanded(
           child: filtered.isEmpty
-              ? const EmptyStateView(
+              ? EmptyStateView(
                   title: 'Chưa gửi yêu cầu mượn nào',
                   message:
-                      'Bạn có thể vào màn hình Chi tiết Tài liệu và chọn "Yêu cầu mượn" để gửi yêu cầu tới chủ sở hữu.',
+                      'Bạn có thể tạo yêu cầu mượn tài liệu học tập ngay tại đây hoặc trong màn hình Chi tiết Tài liệu.',
+                  actionText: 'Tạo yêu cầu mượn ngay',
+                  onAction: () => _showCreateRequestPicker(context),
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(12),

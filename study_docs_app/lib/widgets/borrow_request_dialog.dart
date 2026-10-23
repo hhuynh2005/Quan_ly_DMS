@@ -26,8 +26,30 @@ class BorrowRequestDialog extends StatefulWidget {
     required String currentUserEmail,
     required String currentUserName,
   }) {
+    final isWide = MediaQuery.sizeOf(context).width >= 600;
+    if (isWide) {
+      return showDialog<BorrowRequest>(
+        context: context,
+        useRootNavigator: true,
+        builder: (ctx) => Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Material(
+              borderRadius: BorderRadius.circular(20),
+              clipBehavior: Clip.antiAlias,
+              child: BorrowRequestDialog(
+                document: document,
+                currentUserEmail: currentUserEmail,
+                currentUserName: currentUserName,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return showModalBottomSheet<BorrowRequest>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => BorrowRequestDialog(
@@ -119,18 +141,18 @@ class _BorrowRequestDialogState extends State<BorrowRequestDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header thanh kéo
-          Center(
-            child: Container(
-              width: 44,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: theme.dividerColor,
-                borderRadius: BorderRadius.circular(2),
+          if (MediaQuery.sizeOf(context).width < 600)
+            Center(
+              child: Container(
+                width: 44,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: theme.dividerColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
 
           // Tiêu đề BottomSheet
           Row(
@@ -167,6 +189,11 @@ class _BorrowRequestDialogState extends State<BorrowRequestDialog> {
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded),
+                tooltip: 'Đóng',
+                onPressed: () => Navigator.of(context).pop(),
               ),
             ],
           ),
