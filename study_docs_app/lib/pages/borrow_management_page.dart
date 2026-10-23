@@ -34,6 +34,98 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
   StreamSubscription? _requestsSub;
   StreamSubscription? _fcmSub;
 
+  Future<void> _showCustomEmailLoginDialog(BuildContext context) async {
+    final emailController = TextEditingController();
+    final nameController = TextEditingController();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.person_add_alt_1_rounded, color: AppTheme.primaryColor),
+            SizedBox(width: 8),
+            Text('Đăng Nhập Email Khác', style: TextStyle(fontSize: 17)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Nhập bất kỳ email nào (kể cả email lạ) để đóng vai chủ sở hữu duyệt mượn hoặc sinh viên gửi mượn:',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Email tài khoản *',
+                hintText: 'Ví dụ: giangvien@tlu.edu.vn, banan@gmail.com',
+                prefixIcon: Icon(Icons.alternate_email_rounded, size: 18),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Tên hiển thị (Tùy chọn)',
+                hintText: 'Ví dụ: Thầy Hùng, Bạn An',
+                prefixIcon: Icon(Icons.badge_rounded, size: 18),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              final em = emailController.text.trim();
+              if (em.isEmpty || !em.contains('@')) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Vui lòng nhập định dạng email hợp lệ!')),
+                );
+                return;
+              }
+              Navigator.of(ctx).pop(true);
+            },
+            child: const Text('Chuyển phiên'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      final email = emailController.text.trim();
+      final name = nameController.text.trim().isNotEmpty
+          ? nameController.text.trim()
+          : email.split('@').first;
+
+      // Add to _demoAccounts if not present
+      if (!_demoAccounts.any((a) => a['email']?.toLowerCase() == email.toLowerCase())) {
+        setState(() {
+          _demoAccounts.add({
+            'email': email,
+            'name': name,
+            'role': 'Tài khoản tùy chỉnh',
+          });
+        });
+      }
+
+      _switchUser(email, name);
+    }
+  }
+
   // Tài khoản đang mô phỏng / đăng nhập
   late String _activeEmail;
   late String _activeName;
@@ -692,48 +784,78 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
           // Menu chuyển đổi người dùng Demo siêu tiện lợi
           PopupMenuButton<Map<String, String>>(
             icon: const Icon(Icons.switch_account_rounded),
-            tooltip: 'Chuyển tài khoản Demo kiểm thử',
-            onSelected: (acc) => _switchUser(acc['email']!, acc['name']!),
+            tooltip: 'Chuyển tài khoản kiểm thử (Nhóm 16 hoặc Email lạ)',
+            onSelected: (acc) {
+              if (acc['action'] == 'custom') {
+                _showCustomEmailLoginDialog(context);
+              } else {
+                _switchUser(acc['email']!, acc['name']!);
+              }
+            },
             itemBuilder: (ctx) {
-              return _demoAccounts.map((acc) {
+              final items = <PopupMenuEntry<Map<String, String>>>[];
+              for (final acc in _demoAccounts) {
                 final isCurrent = acc['email'] == _activeEmail;
-                return PopupMenuItem<Map<String, String>>(
-                  value: acc,
+                items.add(
+                  PopupMenuItem<Map<String, String>>(
+                    value: acc,
+                    child: Row(
+                      children: [
+                        Icon(
+                          isCurrent
+                              ? Icons.radio_button_checked_rounded
+                              : Icons.radio_button_off_rounded,
+                          color: isCurrent ? AppTheme.primaryColor : Colors.grey,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                acc['name']!,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isCurrent
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                              Text(
+                                acc['email']!,
+                                style: const TextStyle(
+                                    fontSize: 10, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              items.add(const PopupMenuDivider());
+              items.add(
+                const PopupMenuItem<Map<String, String>>(
+                  value: {'action': 'custom'},
                   child: Row(
                     children: [
-                      Icon(
-                        isCurrent
-                            ? Icons.radio_button_checked_rounded
-                            : Icons.radio_button_off_rounded,
-                        color: isCurrent ? AppTheme.primaryColor : Colors.grey,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              acc['name']!,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: isCurrent
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                            ),
-                            Text(
-                              acc['email']!,
-                              style: const TextStyle(
-                                  fontSize: 10, color: Colors.grey),
-                            ),
-                          ],
+                      Icon(Icons.person_add_alt_1_rounded, color: AppTheme.primaryColor, size: 18),
+                      SizedBox(width: 8),
+                      Text(
+                        '➕ Đăng nhập / Xem với Email lạ...',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryColor,
                         ),
                       ),
                     ],
                   ),
-                );
-              }).toList();
+                ),
+              );
+              return items;
             },
           ),
         ],

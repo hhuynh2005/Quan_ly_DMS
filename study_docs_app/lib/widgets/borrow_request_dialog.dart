@@ -89,9 +89,12 @@ class BorrowRequestDialog extends StatefulWidget {
 
 class _BorrowRequestDialogState extends State<BorrowRequestDialog> {
   final _noteController = TextEditingController();
+  final _customEmailController = TextEditingController();
+  final _customNameController = TextEditingController();
   int _borrowDays = 7;
   DateTime _dueDate = DateTime.now().add(const Duration(days: 7));
   bool _isSubmitting = false;
+  bool _isCustomOwner = false;
   late Map<String, String> _selectedOwner;
 
   @override
@@ -106,6 +109,8 @@ class _BorrowRequestDialogState extends State<BorrowRequestDialog> {
   @override
   void dispose() {
     _noteController.dispose();
+    _customEmailController.dispose();
+    _customNameController.dispose();
     super.dispose();
   }
 
@@ -120,6 +125,29 @@ class _BorrowRequestDialogState extends State<BorrowRequestDialog> {
     setState(() => _isSubmitting = true);
     try {
       final borrowService = BorrowService();
+      String ownerEmail;
+      String ownerName;
+      if (_isCustomOwner) {
+        ownerEmail = _customEmailController.text.trim();
+        ownerName = _customNameController.text.trim();
+        if (ownerEmail.isEmpty || !ownerEmail.contains('@')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Vui lòng nhập định dạng email hợp lệ cho chủ sở hữu!'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          setState(() => _isSubmitting = false);
+          return;
+        }
+        if (ownerName.isEmpty) {
+          ownerName = ownerEmail.split('@').first;
+        }
+      } else {
+        ownerEmail = _selectedOwner['email']!;
+        ownerName = _selectedOwner['name']!;
+      }
+
       final req = await borrowService.createBorrowRequest(
         documentId: widget.document.id,
         documentTitle: widget.document.title,
@@ -128,9 +156,9 @@ class _BorrowRequestDialogState extends State<BorrowRequestDialog> {
         borrowerName: widget.currentUserName.isNotEmpty
             ? widget.currentUserName
             : 'Sinh viên TLU',
-        ownerId: _selectedOwner['email']!,
-        ownerEmail: _selectedOwner['email']!,
-        ownerName: _selectedOwner['name']!,
+        ownerId: ownerEmail,
+        ownerEmail: ownerEmail,
+        ownerName: ownerName,
         dueDate: _dueDate,
         note: _noteController.text.trim().isNotEmpty
             ? _noteController.text.trim()
@@ -258,63 +286,144 @@ class _BorrowRequestDialogState extends State<BorrowRequestDialog> {
           const SizedBox(height: 14),
 
           // Lựa chọn Chủ sở hữu tài liệu (Người duyệt mượn)
-          const Text(
-            'Chủ sở hữu tài liệu (Gửi yêu cầu tới):',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Chủ sở hữu tài liệu (Gửi yêu cầu tới):',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _isCustomOwner = !_isCustomOwner;
+                  });
+                },
+                child: Text(
+                  _isCustomOwner ? 'Chọn từ danh sách' : '✏️ Nhập email lạ...',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-            decoration: BoxDecoration(
-              color: isDark ? Colors.grey[850] : Colors.blueGrey[50],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: theme.dividerColor.withValues(alpha: 0.4),
+          if (!_isCustomOwner) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey[850] : Colors.blueGrey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: theme.dividerColor.withValues(alpha: 0.4),
+                ),
               ),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedOwner['email'],
-                isExpanded: true,
-                items: BorrowRequestDialog.teamAccounts.map((m) {
-                  final isSelf = m['email']?.toLowerCase() == widget.currentUserEmail.toLowerCase();
-                  return DropdownMenuItem<String>(
-                    value: m['email'],
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.account_circle_rounded,
-                          size: 18,
-                          color: isSelf ? Colors.grey : AppTheme.primaryColor,
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedOwner['email'],
+                  isExpanded: true,
+                  items: [
+                    ...BorrowRequestDialog.teamAccounts.map((m) {
+                      final isSelf = m['email']?.toLowerCase() == widget.currentUserEmail.toLowerCase();
+                      return DropdownMenuItem<String>(
+                        value: m['email'],
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.account_circle_rounded,
+                              size: 18,
+                              color: isSelf ? Colors.grey : AppTheme.primaryColor,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${m['name']} (${m['email']})${isSelf ? " - (Bạn)" : ""}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelf ? FontWeight.bold : FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${m['name']} (${m['email']})${isSelf ? " - (Bạn)" : ""}',
+                      );
+                    }),
+                    const DropdownMenuItem<String>(
+                      value: '__custom__',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit_note_rounded, size: 18, color: Colors.orange),
+                          SizedBox(width: 8),
+                          Text(
+                            '✏️ Nhập email khác / Mail lạ...',
                             style: TextStyle(
                               fontSize: 12,
-                              fontWeight: isSelf ? FontWeight.bold : FontWeight.w500,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  );
-                }).toList(),
-                onChanged: (email) {
-                  if (email != null) {
-                    setState(() {
-                      _selectedOwner = BorrowRequestDialog.teamAccounts.firstWhere(
-                        (m) => m['email'] == email,
-                      );
-                    });
-                  }
-                },
+                  ],
+                  onChanged: (email) {
+                    if (email == '__custom__') {
+                      setState(() => _isCustomOwner = true);
+                    } else if (email != null) {
+                      setState(() {
+                        _selectedOwner = BorrowRequestDialog.teamAccounts.firstWhere(
+                          (m) => m['email'] == email,
+                        );
+                      });
+                    }
+                  },
+                ),
               ),
             ),
-          ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey[850] : Colors.amber.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.amber.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: _customEmailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      prefixIcon: Icon(Icons.alternate_email_rounded, size: 18),
+                      labelText: 'Email chủ sở hữu tài liệu *',
+                      hintText: 'Ví dụ: giangvien@tlu.edu.vn, ban.an@gmail.com',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _customNameController,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      prefixIcon: Icon(Icons.badge_rounded, size: 18),
+                      labelText: 'Tên chủ sở hữu (Tùy chọn)',
+                      hintText: 'Ví dụ: Thầy Trần Hùng, Bạn An K65',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
 
           // Lựa chọn thời gian mượn (Số ngày)
