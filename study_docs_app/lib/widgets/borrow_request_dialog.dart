@@ -230,25 +230,24 @@ class _BorrowRequestDialogState extends State<BorrowRequestDialog> {
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               _buildDayChip(3, '3 Ngày'),
-              const SizedBox(width: 8),
               _buildDayChip(7, '7 Ngày (Chuẩn)'),
-              const SizedBox(width: 8),
               _buildDayChip(14, '14 Ngày'),
-              const SizedBox(width: 8),
               _buildDayChip(30, '30 Ngày'),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
           Text(
-            '🗓️ Hạn trả dự kiến: ${DateFormat('dd/MM/yyyy (EEEE)', 'vi').format(_dueDate)}',
+            '🗓️ Hạn trả dự kiến: ${DateFormat('dd/MM/yyyy').format(_dueDate)}',
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               color: AppTheme.primaryColor,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 16),
