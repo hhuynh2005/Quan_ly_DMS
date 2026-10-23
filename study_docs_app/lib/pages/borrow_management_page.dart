@@ -158,6 +158,29 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
     },
   ];
 
+  List<Map<String, String>> get _availableAccounts {
+    final result = List<Map<String, String>>.from(_demoAccounts);
+    for (final req in _borrowService.allRequests) {
+      if (req.ownerEmail.isNotEmpty &&
+          !result.any((a) => a['email']?.toLowerCase() == req.ownerEmail.toLowerCase())) {
+        result.add({
+          'email': req.ownerEmail,
+          'name': req.ownerName.isNotEmpty ? req.ownerName : req.ownerEmail.split('@').first,
+          'role': 'Chủ tài liệu nhận yêu cầu',
+        });
+      }
+      if (req.borrowerEmail.isNotEmpty &&
+          !result.any((a) => a['email']?.toLowerCase() == req.borrowerEmail.toLowerCase())) {
+        result.add({
+          'email': req.borrowerEmail,
+          'name': req.borrowerName.isNotEmpty ? req.borrowerName : req.borrowerEmail.split('@').first,
+          'role': 'Người gửi yêu cầu',
+        });
+      }
+    }
+    return result;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -297,7 +320,7 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
       },
     );
 
-    if (selectedDoc != null && context.mounted) {
+    if (selectedDoc != null && mounted) {
       final req = await BorrowRequestDialog.show(
         context: context,
         document: selectedDoc,
@@ -794,7 +817,7 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
             },
             itemBuilder: (ctx) {
               final items = <PopupMenuEntry<Map<String, String>>>[];
-              for (final acc in _demoAccounts) {
+              for (final acc in _availableAccounts) {
                 final isCurrent = acc['email'] == _activeEmail;
                 items.add(
                   PopupMenuItem<Map<String, String>>(
@@ -993,8 +1016,64 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
         ? list
         : list.where((r) => r.status == _receivedStatusFilter).toList();
 
+    // Tìm xem có yêu cầu nào đang chờ phê duyệt gửi tới email khác (ví dụ: email lạ) không
+    final otherPendingRequests = _borrowService.allRequests
+        .where((r) =>
+            r.status == BorrowStatus.pending &&
+            r.ownerEmail.toLowerCase() != _activeEmail.toLowerCase())
+        .toList();
+
     return Column(
       children: [
+        // Banner thông minh thông báo có yêu cầu đang chờ ở tài khoản khác
+        if (otherPendingRequests.isNotEmpty) ...[
+          Container(
+            margin: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.amber.shade700, width: 1.2),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.notifications_active_rounded, color: Colors.orange, size: 24),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Có yêu cầu gửi tới: ${otherPendingRequests.first.ownerEmail}',
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Bạn đang xem với vai "$_activeEmail". Chuyển tài khoản để DUYỆT yêu cầu!',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.amber.shade700,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  onPressed: () {
+                    final target = otherPendingRequests.first;
+                    _switchUser(target.ownerEmail, target.ownerName);
+                  },
+                  child: const Text(
+                    'Đổi & Duyệt',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         // Thanh lọc trạng thái
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -1025,10 +1104,15 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
 
         Expanded(
           child: filtered.isEmpty
-              ? const EmptyStateView(
-                  title: 'Không có yêu cầu mượn nào',
-                  message:
-                      'Khi các sinh viên khác gửi yêu cầu mượn tài liệu của bạn, chúng sẽ xuất hiện tại đây.',
+              ? EmptyStateView(
+                  title: 'Không có yêu cầu mượn nào gửi tới $_activeEmail',
+                  message: otherPendingRequests.isNotEmpty
+                      ? 'Hiện có ${otherPendingRequests.length} yêu cầu đang chờ gửi tới ${otherPendingRequests.first.ownerEmail}. Bạn có muốn chuyển sang tài khoản đó để duyệt không?'
+                      : 'Khi các sinh viên khác gửi yêu cầu mượn tài liệu của bạn, chúng sẽ xuất hiện tại đây.',
+                  actionText: otherPendingRequests.isNotEmpty ? 'Chuyển sang ${otherPendingRequests.first.ownerEmail}' : null,
+                  onAction: otherPendingRequests.isNotEmpty
+                      ? () => _switchUser(otherPendingRequests.first.ownerEmail, otherPendingRequests.first.ownerName)
+                      : null,
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(12),
