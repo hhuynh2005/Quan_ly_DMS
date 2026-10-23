@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
@@ -36,30 +38,82 @@ class BorrowService {
 
   List<BorrowRequest> get allRequests => List.unmodifiable(_memoryRequests);
 
+  static const String _storageKey = 'cached_borrow_requests_v1';
+
   /// Khởi tạo và nạp danh sách yêu cầu mượn
   Future<void> initialize() async {
-    if (_isInitialized) return;
+    if (_isInitialized) {
+      await reloadFromStorage();
+      return;
+    }
+
+    // 1. Thử nạp từ LocalStorage / SharedPreferences (bền vững trên Web & đa tab)
     try {
-      final db = await _appDb.database;
-      if (db != null) {
-        final List<Map<String, dynamic>> maps =
-            await db.query(AppTables.tableBorrowRequests, orderBy: 'request_date DESC');
+      final prefs = await SharedPreferences.getInstance();
+      final savedJson = prefs.getString(_storageKey);
+      if (savedJson != null && savedJson.isNotEmpty) {
+        final List<dynamic> list = jsonDecode(savedJson);
         _memoryRequests.clear();
-        for (final m in maps) {
-          _memoryRequests.add(BorrowRequest.fromMap(m));
+        for (final item in list) {
+          _memoryRequests.add(BorrowRequest.fromMap(Map<String, dynamic>.from(item)));
         }
       }
     } catch (e) {
-      debugPrint('[BorrowService] Cảnh báo nạp DB (chuyển sang cache bộ nhớ): $e');
+      debugPrint('[BorrowService] Cảnh báo đọc SharedPreferences: $e');
     }
 
-    // Nếu chưa có dữ liệu mượn nào, nạp dữ liệu mẫu ban đầu cho sinh viên Thủy Lợi
+    // 2. Nếu LocalStorage chưa có, nạp từ SQLite
+    if (_memoryRequests.isEmpty) {
+      try {
+        final db = await _appDb.database;
+        if (db != null) {
+          final List<Map<String, dynamic>> maps =
+              await db.query(AppTables.tableBorrowRequests, orderBy: 'request_date DESC');
+          for (final m in maps) {
+            _memoryRequests.add(BorrowRequest.fromMap(m));
+          }
+        }
+      } catch (e) {
+        debugPrint('[BorrowService] Cảnh báo nạp DB (chuyển sang cache bộ nhớ): $e');
+      }
+    }
+
+    // 3. Nếu chưa có dữ liệu mượn nào, nạp dữ liệu mẫu ban đầu cho sinh viên Thủy Lợi
     if (_memoryRequests.isEmpty) {
       await _seedSampleBorrowRequests();
+    } else {
+      await _saveToStorage();
     }
 
     _isInitialized = true;
     _notifyWatchers();
+  }
+
+  Future<void> reloadFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedJson = prefs.getString(_storageKey);
+      if (savedJson != null && savedJson.isNotEmpty) {
+        final List<dynamic> list = jsonDecode(savedJson);
+        final loaded = list.map((item) => BorrowRequest.fromMap(Map<String, dynamic>.from(item))).toList();
+        if (loaded.isNotEmpty && (loaded.length != _memoryRequests.length ||
+            loaded.first.id != (_memoryRequests.isEmpty ? '' : _memoryRequests.first.id))) {
+          _memoryRequests.clear();
+          _memoryRequests.addAll(loaded);
+          _notifyWatchers();
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveToStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = jsonEncode(_memoryRequests.map((r) => r.toMap()).toList());
+      await prefs.setString(_storageKey, jsonStr);
+    } catch (e) {
+      debugPrint('[BorrowService] Lỗi lưu SharedPreferences: $e');
+    }
   }
 
   void _notifyWatchers() {
@@ -134,6 +188,21 @@ class BorrowService {
         returnedDate: now.subtract(const Duration(days: 1)),
         note: 'Đã hoàn thành các bài lab thực hành Shell Script và hoàn trả tài liệu.',
       ),
+      BorrowRequest(
+        id: 'req_sample_hn7456',
+        documentId: 'doc_3',
+        documentTitle: 'Giáo trình Mạng Máy tính & Truyền thông Dữ liệu',
+        borrowerId: 'user_letuan',
+        borrowerEmail: '2151060296@e.tlu.edu.vn',
+        borrowerName: 'Lê Anh Tuấn',
+        ownerId: 'user_hn7456',
+        ownerEmail: 'hn7456401@gmail.com',
+        ownerName: 'Chủ tài liệu ngoài (hn7456401@gmail.com)',
+        status: BorrowStatus.pending,
+        requestDate: now.subtract(const Duration(minutes: 10)),
+        dueDate: now.add(const Duration(days: 7)),
+        note: 'Em muốn mượn bản cứng giáo trình ôn thi cuối kỳ.',
+      ),
     ];
 
     for (final req in sampleRequests) {
@@ -156,6 +225,7 @@ class BorrowService {
     } catch (e) {
       debugPrint('[BorrowService] Ghi SQLite lỗi (lưu vào bộ nhớ): $e');
     }
+    await _saveToStorage();
   }
 
   // ===========================================================================

@@ -15,6 +15,11 @@ class BorrowRequestDialog extends StatefulWidget {
 
   static final List<Map<String, String>> teamAccounts = [
     {
+      'email': 'hn7456401@gmail.com',
+      'name': 'Chủ tài liệu ngoài (hn7456401@gmail.com)',
+      'role': 'Tài khoản người nhận',
+    },
+    {
       'email': '2351170599@e.tlu.edu.vn',
       'name': 'Nguyễn Văn Huỳnh (Nhóm trưởng)',
       'role': 'Trưởng nhóm TH2',

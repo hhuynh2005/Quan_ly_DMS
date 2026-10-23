@@ -33,6 +33,7 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
   final FirebaseMessagingService _fcm = FirebaseMessagingService();
   StreamSubscription? _requestsSub;
   StreamSubscription? _fcmSub;
+  Timer? _syncTimer;
 
   Future<void> _showCustomEmailLoginDialog(BuildContext context) async {
     final emailController = TextEditingController();
@@ -142,6 +143,11 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
       'role': 'Thành viên TH2',
     },
     {
+      'email': 'hn7456401@gmail.com',
+      'name': 'Chủ tài liệu ngoài (hn7456401@gmail.com)',
+      'role': 'Tài khoản người nhận',
+    },
+    {
       'email': '2351170599@e.tlu.edu.vn',
       'name': 'Nguyễn Văn Huỳnh (Nhóm trưởng)',
       'role': 'Trưởng nhóm TH2',
@@ -203,6 +209,10 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
     _fcmSub = _fcm.notificationsStream.listen((_) {
       if (mounted) setState(() {});
     });
+
+    _syncTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      await _borrowService.reloadFromStorage();
+    });
   }
 
   @override
@@ -210,6 +220,7 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
     _tabController.dispose();
     _requestsSub?.cancel();
     _fcmSub?.cancel();
+    _syncTimer?.cancel();
     super.dispose();
   }
 
@@ -231,7 +242,7 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
   // TẠO YÊU CẦU MƯỢN MỚI TRỰC TIẾP TỪ BORROW MANAGEMENT PAGE
   // ===========================================================================
 
-  Future<void> _showCreateRequestPicker(BuildContext context) async {
+  Future<void> _showCreateRequestPicker() async {
     final docs = context.read<DocumentStateProvider>().allDocuments;
     if (docs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -772,7 +783,7 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         tooltip: 'Chọn tài liệu và gửi yêu cầu mượn mới',
-        onPressed: () => _showCreateRequestPicker(context),
+        onPressed: _showCreateRequestPicker,
       ),
       appBar: AppBar(
         title: Column(
@@ -1382,7 +1393,7 @@ class _BorrowManagementPageState extends State<BorrowManagementPage>
                   message:
                       'Bạn có thể tạo yêu cầu mượn tài liệu học tập ngay tại đây hoặc trong màn hình Chi tiết Tài liệu.',
                   actionText: 'Tạo yêu cầu mượn ngay',
-                  onAction: () => _showCreateRequestPicker(context),
+                  onAction: _showCreateRequestPicker,
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(12),
