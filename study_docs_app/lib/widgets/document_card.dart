@@ -13,6 +13,7 @@ class DocumentCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final EdgeInsetsGeometry? margin;
 
   const DocumentCard({
     super.key,
@@ -20,6 +21,7 @@ class DocumentCard extends StatelessWidget {
     this.onTap,
     this.onEdit,
     this.onDelete,
+    this.margin,
   });
 
   @override
@@ -34,7 +36,7 @@ class DocumentCard extends StatelessWidget {
     final statusColor = document.status.color;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      margin: margin ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       elevation: 1.5,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -146,56 +148,66 @@ class DocumentCard extends StatelessWidget {
               // Hàng 3: Loại tài liệu (Badge) + Trạng thái học tập + Hạn nộp
               Row(
                 children: [
-                  // Badge Loại tài liệu (Bài giảng / Bài tập...)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: typeColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(document.documentType.icon, size: 12, color: typeColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          document.documentType.displayName,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: typeColor,
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const ClampingScrollPhysics(),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Badge Loại tài liệu (Bài giảng / Bài tập...)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: typeColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(document.documentType.icon, size: 12, color: typeColor),
+                                const SizedBox(width: 4),
+                                Text(
+                                  document.documentType.displayName,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: typeColor,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
+                          const SizedBox(width: 8),
 
-                  // Badge Trạng thái học tập
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      document.status.displayName,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: statusColor,
+                          // Badge Trạng thái học tập
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: statusColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              document.status.displayName,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: statusColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Huy hiệu Cloud Sync Badge (Nguyễn Trung Kiên)
+                          CloudSyncBadge(
+                            status: document.cloudSyncStatus,
+                            compact: false,
+                          ),
+                        ],
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-
-                  // Huy hiệu Cloud Sync Badge (Nguyễn Trung Kiên)
-                  CloudSyncBadge(
-                    status: document.cloudSyncStatus,
-                    compact: false,
-                  ),
-
-                  const Spacer(),
 
                   // Hạn nộp hoặc Ngày tạo
                   if (document.dueDate != null)

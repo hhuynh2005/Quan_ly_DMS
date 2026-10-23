@@ -8,6 +8,7 @@ import '../widgets/empty_state_view.dart';
 import 'add_edit_document_page.dart';
 import 'document_detail_page.dart';
 import 'search_document_page.dart';
+import '../struct/responsive_breakpoints.dart';
 
 /// Màn hình Quản lý Danh sách Toàn bộ Tài liệu với phân loại Tab & Sắp xếp
 class DocumentListPage extends StatefulWidget {
@@ -215,23 +216,48 @@ class _DocumentListPageState extends State<DocumentListPage> with SingleTickerPr
                             );
                           },
                         )
-                      : ListView.builder(
-                          padding: const EdgeInsets.only(top: 8, bottom: 80),
-                          itemCount: provider.filteredDocuments.length,
-                          itemBuilder: (ctx, index) {
-                            final doc = provider.filteredDocuments[index];
-                            return DocumentCard(
-                              document: doc,
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => DocumentDetailPage(documentId: doc.id),
-                                  ),
+                      : context.isWide
+                          ? GridView.builder(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                mainAxisExtent: 205,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                              ),
+                              itemCount: provider.filteredDocuments.length,
+                              itemBuilder: (ctx, index) {
+                                final doc = provider.filteredDocuments[index];
+                                return DocumentCard(
+                                  document: doc,
+                                  margin: EdgeInsets.zero,
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => DocumentDetailPage(documentId: doc.id),
+                                      ),
+                                    );
+                                  },
                                 );
                               },
-                            );
-                          },
-                        ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.only(top: 8, bottom: 80),
+                              itemCount: provider.filteredDocuments.length,
+                              itemBuilder: (ctx, index) {
+                                final doc = provider.filteredDocuments[index];
+                                return DocumentCard(
+                                  document: doc,
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => DocumentDetailPage(documentId: doc.id),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
                 ),
               ],
             ),
