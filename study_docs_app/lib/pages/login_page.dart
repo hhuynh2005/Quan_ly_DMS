@@ -19,6 +19,46 @@ class _LoginPageState extends State<LoginPage> {
   final GoogleAuthService _authService = GoogleAuthService();
   bool _isLoading = false;
 
+  Future<void> _handleStudentQuickSignIn(String email, String displayName) async {
+    setState(() => _isLoading = true);
+    try {
+      await _authService.signInWithStudentAccount(
+        email: email,
+        displayName: displayName,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppTheme.primaryColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          content: Row(
+            children: [
+              const Icon(Icons.school_rounded, color: Colors.white),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Đăng nhập thành công!\nSinh viên: $displayName ($email)',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text('Lỗi: $e'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _handleSignIn() async {
     setState(() => _isLoading = true);
     try {
@@ -445,7 +485,121 @@ class _LoginPageState extends State<LoginPage> {
           ),
           onPressed: _isLoading ? null : _handleSignIn,
         ),
+
+        const SizedBox(height: 16),
+
+        // Thẻ đăng nhập nhanh kiểm thử TH2
+        Card(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.bolt_rounded, color: Colors.amber, size: 22),
+                    SizedBox(width: 8),
+                    Text(
+                      'Đăng Nhập Nhanh Kiểm Thử TH2',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Chọn 1 tài khoản thành viên Nhóm 16 để đăng nhập tức thì kiểm thử Checklist 4:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildQuickAccountTile(
+                  name: 'Lê Anh Tuấn (Phụ trách Mượn/Trả)',
+                  email: '2151060296@e.tlu.edu.vn',
+                  isDark: isDark,
+                ),
+                const SizedBox(height: 8),
+                _buildQuickAccountTile(
+                  name: 'Nguyễn Văn Huỳnh (Nhóm trưởng)',
+                  email: '2351170599@e.tlu.edu.vn',
+                  isDark: isDark,
+                ),
+                const SizedBox(height: 8),
+                _buildQuickAccountTile(
+                  name: 'NGUYỄN TRUNG KIÊN (Responsive & Map)',
+                  email: '2251172394@e.tlu.edu.vn',
+                  isDark: isDark,
+                ),
+                const SizedBox(height: 8),
+                _buildQuickAccountTile(
+                  name: 'Trần Anh Tuấn (Recommendation & Tag)',
+                  email: '2351170629@e.tlu.edu.vn',
+                  isDark: isDark,
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _buildQuickAccountTile({
+    required String name,
+    required String email,
+    required bool isDark,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: _isLoading ? null : () => _handleStudentQuickSignIn(email, name),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppTheme.primaryColor.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
+              child: Text(
+                name.isNotEmpty ? name[0] : 'S',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    email,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? Colors.white60 : Colors.black45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppTheme.primaryColor),
+          ],
+        ),
+      ),
     );
   }
 

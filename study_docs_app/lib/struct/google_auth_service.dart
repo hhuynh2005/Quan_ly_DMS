@@ -65,8 +65,22 @@ class GoogleAuthService {
     try {
       debugPrint('[GoogleAuthService] Bắt đầu luồng đăng nhập Google...');
 
+      if (kIsWeb) {
+        final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        googleProvider.addScope('email');
+        final UserCredential userCredential =
+            await _auth.signInWithPopup(googleProvider);
+        final User? user = userCredential.user;
+        if (user != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('currentUserEmail', user.email ?? '');
+          await prefs.setString('currentUserName', user.displayName ?? '');
+        }
+        return userCredential;
+      }
+
       GoogleSignInAccount? googleAccount;
-      if (silent && !kIsWeb) {
+      if (silent) {
         googleAccount = await _googleSignIn.signInSilently();
       } else {
         googleAccount = await _googleSignIn.signIn();
@@ -105,6 +119,33 @@ class GoogleAuthService {
       rethrow;
     } catch (e) {
       debugPrint('[GoogleAuthService] Lỗi ngoại lệ Google Sign-In: $e');
+      rethrow;
+    }
+  }
+
+  /// Đăng nhập nhanh tài khoản sinh viên TLU mô phỏng kiểm thử đồ án TH2
+  Future<User?> signInWithStudentAccount({
+    required String email,
+    required String displayName,
+  }) async {
+    try {
+      debugPrint('[GoogleAuthService] Đăng nhập nhanh sinh viên: $email');
+      User? user;
+      if (_isFirebaseInitialized) {
+        try {
+          final cred = await _auth.signInAnonymously();
+          user = cred.user;
+          await user?.updateDisplayName(displayName);
+        } catch (e) {
+          debugPrint('[GoogleAuthService] Anonymous sign-in: $e');
+        }
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('currentUserEmail', email);
+      await prefs.setString('currentUserName', displayName);
+      return user;
+    } catch (e) {
+      debugPrint('[GoogleAuthService] Lỗi signInWithStudentAccount: $e');
       rethrow;
     }
   }
